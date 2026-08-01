@@ -36,356 +36,666 @@
 
 <body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
 
-  <div id="app" class="min-h-screen flex flex-col">
+  <div id="app" class="min-h-screen flex flex-col lg:flex-row">
 
-    <!-- ==================== HEADER ==================== -->
-    <header class="max-w-6xl w-full mx-auto px-4 pt-10">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <div class="flex items-center gap-4">
-          <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.42a12.08 12.08 0 01.84 6.42M12 14v6M5 10v6a4 4 0 0014 0" />
-            </svg>
-          </div>
+    <!-- ==================== SIDEBAR (desktop) ==================== -->
+    <aside class="hidden lg:flex fixed inset-y-0 left-0 w-64 flex-col bg-white border-r border-slate-100 px-4 py-8">
+      <div class="flex items-center gap-3 px-2">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+          <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.42a12.08 12.08 0 01.84 6.42M12 14v6M5 10v6a4 4 0 0014 0" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">Tableau de bord</h1>
+          <p class="text-xs text-slate-500">{{ identifiantAffichable }}</p>
+        </div>
+      </div>
+
+      <nav class="mt-10 space-y-1.5 flex-1">
+        <button
+          v-for="onglet in onglets"
+          :key="onglet.id"
+          @click="ongletActif = onglet.id"
+          class="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition"
+          :class="ongletActif === onglet.id ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'">
+          <span class="text-lg">{{ onglet.icone }}</span>
+          {{ onglet.label }}
+        </button>
+      </nav>
+
+      <div class="pt-4 border-t border-slate-100 px-2">
+        <p class="text-xs text-slate-400">{{ dateDuJour }}</p>
+      </div>
+    </aside>
+
+    <!-- ==================== BARRE MOBILE ==================== -->
+    <div class="lg:hidden sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-100 px-3 py-2 flex gap-1.5 overflow-x-auto">
+      <button
+        v-for="onglet in onglets"
+        :key="onglet.id"
+        @click="ongletActif = onglet.id"
+        class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition"
+        :class="ongletActif === onglet.id ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'">
+        <span>{{ onglet.icone }}</span>
+        <span>{{ onglet.label }}</span>
+      </button>
+    </div>
+
+    <!-- ==================== CONTENU ==================== -->
+    <main class="flex-1 lg:ml-64">
+
+      <!-- ============ ONGLET : DASHBOARD ============ -->
+      <section v-if="ongletActif === 'dashboard'" class="max-w-6xl mx-auto px-4 py-8">
+        <header class="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 class="text-2xl font-bold text-slate-900">Tableau de bord étudiant</h1>
-            <p class="text-sm text-slate-500">Emploi du temps ADE · Devoirs · Plan de révision IA</p>
+            <h2 class="text-2xl font-bold text-slate-900">Dashboard</h2>
+            <p class="text-sm text-slate-500">{{ dateDuJour }}</p>
           </div>
-        </div>
-        <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm text-sm text-slate-600">
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm text-sm text-slate-600">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            {{ heureActuelle }}
           </span>
-          {{ dateDuJour }}
-        </span>
-      </div>
+        </header>
 
-      <!-- Statistiques -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-          <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Cours aujourd'hui</p>
-          <p class="text-2xl font-bold text-slate-900 mt-1">{{ cours.length }}</p>
-        </div>
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-          <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Devoirs à faire</p>
-          <p class="text-2xl font-bold text-slate-900 mt-1">{{ devoirsAFaire }}</p>
-        </div>
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-          <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Prochaine échéance</p>
-          <p class="text-2xl font-bold text-slate-900 mt-1">{{ prochaineEcheance }}</p>
-        </div>
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-          <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Heure locale</p>
-          <p class="text-2xl font-bold text-indigo-600 mt-1 tabular-nums">{{ heureActuelle }}</p>
-        </div>
-      </div>
-    </header>
-
-    <!-- ==================== GRILLE BENTO ==================== -->
-    <main class="max-w-6xl w-full mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1">
-
-      <!-- ---------- Carte 1 : Emploi du temps ---------- -->
-      <section class="lg:col-span-3 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <div class="flex items-center justify-between gap-3 flex-wrap">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div>
-              <h2 class="font-semibold text-slate-900">Emploi du temps du jour</h2>
-              <p class="text-xs text-slate-400">Synchronisé avec ton flux ADE · actualisation toutes les 60 s</p>
-            </div>
+        <!-- Statistiques -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Cours aujourd'hui</p>
+            <p class="text-2xl font-bold text-slate-900 mt-1">{{ cours.length }}</p>
           </div>
-          <button
-            @click="chargerCours()"
-            :disabled="chargementCours"
-            class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-medium shadow-sm transition">
-            <svg :class="{ 'animate-spin': chargementCours }" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            {{ chargementCours ? 'Synchro…' : 'Rafraîchir' }}
-          </button>
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">À faire</p>
+            <p class="text-2xl font-bold text-rose-600 mt-1">{{ nbStatut('a_faire') }}</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">En cours</p>
+            <p class="text-2xl font-bold text-amber-500 mt-1">{{ nbStatut('en_cours') }}</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Terminés</p>
+            <p class="text-2xl font-bold text-emerald-600 mt-1">{{ nbStatut('termine') }}</p>
+          </div>
         </div>
 
-        <p v-if="erreurCours" class="mt-5 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-4">{{ erreurCours }}</p>
+        <!-- Grille bento -->
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6">
 
-        <ul v-else-if="cours.length" class="mt-5 space-y-3">
-          <li
-            v-for="c in cours"
-            :key="c.debut_iso"
-            class="flex items-start gap-4 rounded-xl border p-4 transition"
-            :class="estEnCours(c) ? 'border-indigo-300 bg-indigo-50/70 shadow-sm' : 'border-slate-100 hover:border-indigo-200 hover:shadow-sm'">
-            <div class="w-16 text-center shrink-0">
-              <p class="font-bold text-slate-900 tabular-nums">{{ c.debut }}</p>
-              <p class="text-slate-300 text-xs leading-none my-1">—</p>
-              <p class="text-sm text-slate-500 tabular-nums">{{ c.fin }}</p>
-            </div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span v-if="estEnCours(c)" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white bg-emerald-500 animate-pulse">EN COURS</span>
-                <h3 class="font-semibold text-slate-800">{{ c.titre }}</h3>
+          <!-- Carte : Emploi du temps du jour -->
+          <section class="lg:col-span-3 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-slate-900">Emploi du temps du jour</h3>
+                  <p class="text-xs text-slate-400">Actualisation toutes les 60 s</p>
+                </div>
               </div>
-              <p class="text-sm text-slate-500 mt-1 flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              <button
+                @click="chargerCours()"
+                :disabled="chargementCours"
+                class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-medium shadow-sm transition">
+                <svg :class="{ 'animate-spin': chargementCours }" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                {{ c.salle || 'Salle non renseignée' }}
-              </p>
+                {{ chargementCours ? 'Synchro…' : 'Rafraîchir' }}
+              </button>
             </div>
-          </li>
-        </ul>
 
-        <div v-else class="mt-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 p-10 text-center">
-          <p class="font-medium text-slate-600">Aucun cours prévu aujourd'hui</p>
-          <p class="text-sm text-slate-400 mt-1">Profites-en pour avancer sur tes devoirs ou préparer tes révisions.</p>
+            <p v-if="erreurCours" class="mt-5 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-4">{{ erreurCours }}</p>
+
+            <ul v-else-if="cours.length" class="mt-5 space-y-3">
+              <li
+                v-for="c in cours"
+                :key="c.debut"
+                class="flex items-start gap-4 rounded-xl border p-4 transition"
+                :class="estEnCours(c) ? 'border-indigo-300 bg-indigo-50/70 shadow-sm' : 'border-slate-100 hover:border-indigo-200 hover:shadow-sm'">
+                <div class="w-16 text-center shrink-0">
+                  <p class="font-bold text-slate-900 tabular-nums">{{ c.debut }}</p>
+                  <p class="text-slate-300 text-xs leading-none my-1">—</p>
+                  <p class="text-sm text-slate-500 tabular-nums">{{ c.fin }}</p>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span v-if="estEnCours(c)" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white bg-emerald-500 animate-pulse">EN COURS</span>
+                    <h3 class="font-semibold text-slate-800">{{ c.titre }}</h3>
+                  </div>
+                  <p class="text-sm text-slate-500 mt-1 flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {{ c.salle || 'Salle non renseignée' }}
+                  </p>
+                </div>
+              </li>
+            </ul>
+
+            <div v-else class="mt-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 p-10 text-center">
+              <p class="font-medium text-slate-600">Aucun cours prévu aujourd'hui</p>
+              <p class="text-sm text-slate-400 mt-1">Profites-en pour avancer sur tes devoirs ou préparer tes révisions.</p>
+            </div>
+          </section>
+
+          <!-- Carte : Devoirs rapides -->
+          <section class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-slate-900">Devoirs</h3>
+                  <p class="text-xs text-slate-400">{{ devoirs.length }} au total</p>
+                </div>
+              </div>
+              <button @click="ongletActif = 'devoirs'" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">Voir le Kanban →</button>
+            </div>
+
+            <form @submit.prevent="ajouterDevoirRapide" class="mt-5 flex gap-2">
+              <input
+                v-model="nouveauDevoirRapide"
+                required
+                type="text"
+                placeholder="Nouveau devoir…"
+                class="flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              <button
+                type="submit"
+                class="inline-flex items-center justify-center w-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </form>
+
+            <p v-if="erreurDevoirs" class="mt-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-3">{{ erreurDevoirs }}</p>
+
+            <ul v-if="devoirs.length" class="mt-5 divide-y divide-slate-100">
+              <li v-for="d in devoirs.slice(0, 6)" :key="d.id" class="flex items-center gap-3 py-3">
+                <button
+                  type="button"
+                  @click="cycleStatut(d)"
+                  :title="'Statut : ' + statutLabel(d.statut)"
+                  class="w-3 h-3 rounded-full shrink-0 transition"
+                  :class="statutDot(d.statut)"></button>
+                <div class="flex-1 min-w-0">
+                  <p class="truncate font-medium" :class="d.statut === 'termine' ? 'line-through text-slate-400' : 'text-slate-800'">{{ d.titre }}</p>
+                  <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs" :class="typeBadge(d.type)">{{ typeLabel(d.type) }}</span>
+                    <span v-if="d.matiere" class="text-xs text-slate-400">{{ d.matiere }}</span>
+                    <span v-if="d.echeance" class="text-xs text-slate-400">📅 {{ formaterEcheance(d.echeance) }}</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs" :class="statutBadge(d.statut)">{{ statutLabel(d.statut) }}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  @click="supprimerDevoir(d)"
+                  title="Supprimer"
+                  class="text-slate-300 hover:text-rose-500 transition">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </li>
+            </ul>
+
+            <div v-else class="mt-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 p-8 text-center">
+              <p class="font-medium text-slate-600">Aucun devoir pour l'instant</p>
+              <p class="text-sm text-slate-400 mt-1">Ajoute ton premier devoir avec le formulaire ci-dessus.</p>
+            </div>
+          </section>
+
+          <!-- Carte : Plan de révision IA -->
+          <section class="lg:col-span-5 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 rounded-2xl shadow-xl border border-indigo-500/20 p-6 md:p-8">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div class="flex items-center gap-4">
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/40">
+                  <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="text-xl font-bold text-white">Plan de révision IA</h3>
+                  <p class="text-sm text-indigo-200/70">Coach personnel basé sur tes cours et tes devoirs, propulsé par Gemini.</p>
+                </div>
+              </div>
+              <button
+                @click="genererPlanIA"
+                :disabled="chargementPlan"
+                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 disabled:opacity-60 text-white text-sm font-semibold shadow-lg shadow-indigo-500/40 transition">
+                <svg v-if="chargementPlan" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                {{ chargementPlan ? "L'IA analyse ta journée…" : (plan ? 'Régénérer le plan' : 'Générer mon plan du soir') }}
+              </button>
+            </div>
+
+            <div v-if="chargementPlan" class="mt-8 rounded-xl bg-white/5 border border-white/10 p-10 text-center">
+              <svg class="animate-spin w-8 h-8 text-indigo-300 mx-auto" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p class="mt-4 text-slate-200 font-medium">L'IA analyse ton emploi du temps et tes devoirs…</p>
+              <p class="mt-1 text-sm text-slate-400">Le plan de la soirée arrive dans quelques secondes.</p>
+            </div>
+
+            <div v-else-if="erreurPlan" class="mt-8 rounded-xl bg-rose-500/10 border border-rose-400/30 p-4 text-rose-200 text-sm">{{ erreurPlan }}</div>
+
+            <div v-else-if="plan" class="mt-8 space-y-6">
+              <div class="rounded-xl bg-white/5 border border-white/10 p-5">
+                <p class="text-xs font-semibold uppercase tracking-wider text-indigo-300 mb-2">Conseil du soir</p>
+                <p class="text-slate-100 leading-relaxed">{{ planContenu.conseil }}</p>
+              </div>
+
+              <div v-if="planning.length" class="space-y-3">
+                <div
+                  v-for="(s, i) in planning"
+                  :key="i"
+                  class="rounded-xl bg-white/5 border border-white/10 p-5 flex flex-wrap items-center gap-4">
+                  <span class="w-10 h-10 rounded-lg bg-indigo-500/20 text-indigo-200 font-semibold flex items-center justify-center text-sm tabular-nums">{{ i + 1 }}</span>
+                  <div class="min-w-0 flex-1">
+                    <h3 class="text-slate-50 font-semibold">{{ s.matiere }}</h3>
+                    <p class="text-sm text-slate-300 mt-0.5">{{ s.action }}</p>
+                  </div>
+                  <span class="inline-flex items-center px-3 py-1.5 rounded-full bg-white/10 text-indigo-100 text-sm font-medium tabular-nums shrink-0">{{ s.heure }}</span>
+                </div>
+              </div>
+              <p v-else class="text-sm text-slate-400">L'IA n'a pas proposé de créneau structuré cette fois-ci.</p>
+
+              <div class="flex items-center justify-between gap-3 flex-wrap">
+                <p class="text-sm text-indigo-200/70">Plan adapté à ton emploi du temps du jour</p>
+                <button
+                  @click="copierPlan"
+                  class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  {{ planCopie ? 'Copié !' : 'Copier le plan' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-else class="mt-8 rounded-xl bg-white/5 border border-dashed border-white/15 p-10 text-center">
+              <p class="text-slate-300 font-medium">Aucun plan généré pour l'instant</p>
+              <p class="text-sm text-slate-400 mt-1">L'IA analysera ton emploi du temps et tes devoirs pour proposer une soirée de révision optimale.</p>
+            </div>
+          </section>
         </div>
       </section>
 
-      <!-- ---------- Carte 2 : Devoirs ---------- -->
-      <section class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
-              <svg class="w-5 h-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+      <!-- ============ ONGLET : SEMAINE ============ -->
+      <section v-else-if="ongletActif === 'semaine'" class="max-w-6xl mx-auto px-4 py-8">
+        <header class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-2xl font-bold text-slate-900">Emploi du temps de la semaine</h2>
+            <p class="text-sm text-slate-500">{{ semaineInfo.date_debut ? 'Semaine du ' + formaterCourte(semaineInfo.date_debut) + ' au ' + formaterCourte(semaineInfo.date_fin) : 'Choisis une semaine pour naviguer dans ton calendrier' }}</p>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              @click="changerSemaine(-7)"
+              title="Semaine précédente"
+              class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
+            </button>
+            <input
+              v-model="semaineDate"
+              type="date"
+              @change="chargerSemaine()"
+              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <button
+              @click="changerSemaine(7)"
+              title="Semaine suivante"
+              class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+            <button
+              @click="chargerSemaine()"
+              :disabled="chargementSemaine"
+              class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-medium shadow-sm transition">
+              <svg :class="{ 'animate-spin': chargementSemaine }" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Rafraîchir
+            </button>
+          </div>
+        </header>
+
+        <p v-if="erreurSemaine" class="mt-6 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-4">{{ erreurSemaine }}</p>
+
+        <div v-else-if="chargementSemaine" class="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div v-for="i in 5" :key="i" class="rounded-2xl border border-slate-100 bg-white shadow-sm p-4 h-64 animate-pulse"></div>
+        </div>
+
+        <div v-else-if="joursSemaine.length" class="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div
+            v-for="jour in joursSemaine"
+            :key="jour.date"
+            class="rounded-2xl border p-4 bg-white shadow-sm flex flex-col"
+            :class="jour.estAujourdhui ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-slate-100'">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="font-semibold text-slate-900">{{ jour.libelle }}</h3>
+              <span v-if="jour.estAujourdhui" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white bg-indigo-600">AUJOURD'HUI</span>
             </div>
-            <div>
-              <h2 class="font-semibold text-slate-900">Devoirs</h2>
-              <p class="text-xs text-slate-400">
-                {{ devoirs.length }} au total ·
-                <span :class="devoirsAFaire ? 'text-indigo-600 font-medium' : 'text-emerald-600 font-medium'">{{ devoirsAFaire }} à faire</span>
-              </p>
+            <div class="mt-3 space-y-2 flex-1">
+              <div
+                v-for="c in jour.cours"
+                :key="c.titre + c.debut"
+                class="rounded-xl border p-3"
+                :class="jour.estAujourdhui ? 'border-indigo-100 bg-indigo-50/60' : 'border-slate-100 bg-slate-50/60'">
+                <p class="text-xs font-semibold text-indigo-600 tabular-nums">{{ c.debut }} – {{ c.fin }}</p>
+                <p class="font-medium text-slate-800 text-sm mt-1 leading-snug">{{ c.titre }}</p>
+                <p class="text-xs text-slate-500 mt-0.5">{{ c.salle || 'Salle non renseignée' }}</p>
+              </div>
+            </div>
+            <div v-if="!jour.cours.length" class="mt-3 rounded-xl border border-dashed border-slate-200 p-4 text-center flex-1 flex items-center justify-center">
+              <p class="text-xs text-slate-400">Pas de cours</p>
             </div>
           </div>
         </div>
 
+        <div v-else class="mt-6 rounded-xl bg-white border border-dashed border-slate-200 p-10 text-center">
+          <p class="font-medium text-slate-600">Aucune donnée pour cette semaine</p>
+        </div>
+      </section>
+
+      <!-- ============ ONGLET : DEVOIRS (KANBAN) ============ -->
+      <section v-else-if="ongletActif === 'devoirs'" class="max-w-6xl mx-auto px-4 py-8">
+        <header class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-2xl font-bold text-slate-900">Devoirs</h2>
+            <p class="text-sm text-slate-500">Tableau Kanban : glisse tes devoirs entre les statuts.</p>
+          </div>
+        </header>
+
         <!-- Formulaire d'ajout -->
-        <form @submit.prevent="ajouterDevoir" class="mt-5 space-y-3">
-          <input
-            v-model="nouveauDevoir.titre"
-            required
-            type="text"
-            placeholder="Intitulé du devoir"
-            class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
-          <div class="grid grid-cols-2 gap-3">
+        <form @submit.prevent="ajouterDevoir" class="mt-6 bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-medium text-slate-500 mr-1">Type :</span>
+            <button
+              v-for="t in types"
+              :key="t.id"
+              type="button"
+              @click="nouveauDevoir.type = t.id"
+              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium border transition"
+              :class="nouveauDevoir.type === t.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'">
+              {{ t.icone }} {{ t.label }}
+            </button>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <input
+              v-model="nouveauDevoir.titre"
+              required
+              type="text"
+              placeholder="Intitulé…"
+              class="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             <input
               v-model="nouveauDevoir.matiere"
               type="text"
               placeholder="Matière"
-              class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              class="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             <input
               v-model="nouveauDevoir.echeance"
               type="date"
-              class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              class="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <select
+              v-model="nouveauDevoir.statut"
+              class="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="a_faire">🔴 À faire</option>
+              <option value="en_cours">🟡 En cours</option>
+              <option value="termine">🟢 Terminé</option>
+            </select>
           </div>
           <button
             type="submit"
-            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium shadow-sm transition">
+            class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium shadow-sm transition">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
             </svg>
-            Ajouter le devoir
+            Ajouter
           </button>
         </form>
 
         <p v-if="erreurDevoirs" class="mt-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-4">{{ erreurDevoirs }}</p>
 
-        <!-- Liste -->
-        <ul v-if="devoirs.length" class="mt-5 divide-y divide-slate-100">
-          <li v-for="d in devoirs" :key="d.id" class="flex items-center gap-3 py-3">
-            <button
-              type="button"
-              @click="basculerFait(d)"
-              :title="d.fait ? 'Marquer comme non fait' : 'Marquer comme fait'"
-              class="w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition"
-              :class="d.fait ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 hover:border-indigo-400'">
-              <svg v-if="d.fait" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </button>
-            <div class="flex-1 min-w-0">
-              <p class="truncate font-medium" :class="d.fait ? 'line-through text-slate-400' : 'text-slate-800'">{{ d.titre }}</p>
-              <div class="flex flex-wrap items-center gap-2 mt-1">
-                <span v-if="d.matiere" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-600 border border-indigo-100">{{ d.matiere }}</span>
-                <span
-                  v-if="d.echeance"
-                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs border"
-                  :class="echeanceCouleur(d)">
-                  {{ libelleEcheance(d) }}
-                </span>
+        <!-- Colonnes Kanban -->
+        <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div
+            v-for="colonne in colonnes"
+            :key="colonne.id"
+            class="rounded-2xl border border-slate-100 bg-white shadow-sm p-4 flex flex-col">
+            <div class="flex items-center justify-between px-1">
+              <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold" :class="colonne.badge">
+                {{ colonne.icone }} {{ colonne.label }}
+              </span>
+              <span class="text-sm font-bold text-slate-400 tabular-nums">{{ devoirsParStatut(colonne.id).length }}</span>
+            </div>
+
+            <div class="mt-4 space-y-3 flex-1">
+              <div
+                v-for="d in devoirsParStatut(colonne.id)"
+                :key="d.id"
+                class="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs" :class="typeBadge(d.type)">{{ typeLabel(d.type) }}</span>
+                    <p class="font-medium text-slate-800 leading-snug mt-1">{{ d.titre }}</p>
+                    <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span v-if="d.matiere" class="text-xs text-slate-500">{{ d.matiere }}</span>
+                      <span
+                        v-if="d.echeance"
+                        class="inline-flex items-center px-2 py-0.5 rounded-full text-xs border"
+                        :class="echeanceCouleur(d.echeance)">
+                        {{ libelleEcheance(d.echeance) }}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    @click="supprimerDevoir(d)"
+                    title="Supprimer"
+                    class="text-slate-300 hover:text-rose-500 transition shrink-0">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+                <div class="mt-3 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    @click="deplacer(d, -1)"
+                    :disabled="d.statut === 'a_faire'"
+                    title="Revenir en arrière"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    @click="deplacer(d, 1)"
+                    :disabled="d.statut === 'termine'"
+                    title="Faire avancer"
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="!devoirsParStatut(colonne.id).length" class="rounded-xl border border-dashed border-slate-200 p-6 text-center">
+                <p class="text-xs text-slate-400">Aucun devoir</p>
               </div>
             </div>
-            <button
-              type="button"
-              @click="supprimerDevoir(d)"
-              title="Supprimer"
-              class="text-slate-300 hover:text-rose-500 transition">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-          </li>
-        </ul>
-
-        <div v-else-if="!erreurDevoirs" class="mt-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 p-8 text-center">
-          <p class="font-medium text-slate-600">Aucun devoir pour l'instant</p>
-          <p class="text-sm text-slate-400 mt-1">Ajoute ton premier devoir avec le formulaire ci-dessus.</p>
+          </div>
         </div>
       </section>
 
-      <!-- ---------- Carte 3 : Plan de révision IA ---------- -->
-      <section class="lg:col-span-5 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 rounded-2xl shadow-xl border border-indigo-500/20 p-6 md:p-8">
-        <div class="flex items-start justify-between gap-4 flex-wrap">
-          <div class="flex items-center gap-4">
-            <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/40">
-              <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-              </svg>
-            </div>
-            <div>
-              <h2 class="text-xl font-bold text-white">Plan de révision IA</h2>
-              <p class="text-sm text-indigo-200/70">Coach personnel basé sur tes cours et tes échéances, propulsé par Gemini.</p>
-            </div>
+      <!-- ============ ONGLET : CONFIGURATION ============ -->
+      <section v-else-if="ongletActif === 'config'" class="max-w-3xl mx-auto px-4 py-8">
+        <header>
+          <h2 class="text-2xl font-bold text-slate-900">Configuration</h2>
+          <p class="text-sm text-slate-500">Paramètres du compte, de l'emploi du temps ADE et de l'IA.</p>
+        </header>
+
+        <form @submit.prevent="enregistrerConfig" class="mt-8 bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Pseudo / Identifiant</label>
+            <input
+              v-model="config.username"
+              type="text"
+              placeholder="Ton pseudo GitHub ou ton nom"
+              class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Lien d'export iCal / ADE</label>
+            <input
+              v-model="config.ade_url"
+              type="url"
+              placeholder="https://ton-ecole.example.com/ade/ics?data=…"
+              class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <p class="text-xs text-slate-400 mt-1.5">Trouvé dans ton application ADE : Emploi du temps → Export / iCal.</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Clé API Gemini</label>
+            <input
+              v-model="config.gemini_key"
+              type="password"
+              placeholder="AIza…"
+              autocomplete="off"
+              class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <p class="text-xs text-slate-400 mt-1.5">Gratuite sur <span class="font-medium">https://aistudio.google.com/apikey</span> — stockée uniquement en base locale.</p>
+          </div>
+
+          <p v-if="configMessage" class="rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm p-3.5">{{ configMessage }}</p>
+          <p v-if="configErreur" class="rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-3.5">{{ configErreur }}</p>
+
           <button
-            @click="genererPlan"
-            :disabled="chargementPlan"
-            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 disabled:opacity-60 text-white text-sm font-semibold shadow-lg shadow-indigo-500/40 transition">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            type="submit"
+            :disabled="configEnregistrement"
+            class="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition">
+            <svg v-if="configEnregistrement" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            {{ chargementPlan ? 'Génération…' : (plan ? 'Régénérer le plan' : 'Générer mon plan du soir') }}
+            {{ configEnregistrement ? 'Enregistrement…' : 'Enregistrer la configuration' }}
           </button>
-        </div>
-
-        <!-- État : chargement -->
-        <div v-if="chargementPlan" class="mt-8 rounded-xl bg-white/5 border border-white/10 p-10 text-center">
-          <svg class="animate-spin w-8 h-8 text-indigo-300 mx-auto" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <p class="mt-4 text-slate-200 font-medium">L'IA analyse ton emploi du temps et tes devoirs…</p>
-          <p class="mt-1 text-sm text-slate-400">Le plan de la soirée arrive dans quelques secondes.</p>
-        </div>
-
-        <!-- État : erreur -->
-        <div v-else-if="erreurPlan" class="mt-8 rounded-xl bg-rose-500/10 border border-rose-400/30 p-4 text-rose-200 text-sm">
-          {{ erreurPlan }}
-        </div>
-
-        <!-- État : plan généré -->
-        <div v-else-if="plan" class="mt-8 space-y-6">
-          <div class="rounded-xl bg-white/5 border border-white/10 p-5">
-            <p class="text-xs font-semibold uppercase tracking-wider text-indigo-300 mb-2">Conseil du soir</p>
-            <p class="text-slate-100 leading-relaxed">{{ planContenu.conseil_soir }}</p>
-          </div>
-
-          <div v-if="sessions.length" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div
-              v-for="(s, i) in sessions"
-              :key="i"
-              class="rounded-xl bg-white/5 border border-white/10 p-5 flex flex-col">
-              <div class="flex items-center justify-between">
-                <span class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-200 font-semibold flex items-center justify-center text-sm tabular-nums">{{ i + 1 }}</span>
-                <span class="text-sm font-semibold text-white tabular-nums">{{ s.duree_minutes }} min</span>
-              </div>
-              <h3 class="text-slate-50 font-semibold mt-3">{{ s.matiere }}</h3>
-              <p class="text-sm text-slate-300 mt-1 flex-1">{{ s.objectif }}</p>
-              <span v-if="s.technique" class="self-start mt-3 px-2.5 py-1 rounded-full bg-violet-500/20 text-violet-200 text-xs">{{ s.technique }}</span>
-            </div>
-          </div>
-          <p v-else class="text-sm text-slate-400">L'IA n'a pas proposé de session structurée cette fois-ci.</p>
-
-          <div class="flex items-center justify-between gap-3 flex-wrap">
-            <p class="text-sm text-indigo-200/70">Total estimé : <span class="font-semibold text-white tabular-nums">{{ dureeFormattee }}</span> de travail effectif</p>
-            <div class="flex items-center gap-3">
-              <span v-if="plan.modele" class="text-xs text-slate-400">Modèle : {{ plan.modele }}</span>
-              <button
-                @click="copierPlan"
-                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                {{ planCopie ? 'Copié !' : 'Copier le plan' }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- État : initial -->
-        <div v-else class="mt-8 rounded-xl bg-white/5 border border-dashed border-white/15 p-10 text-center">
-          <p class="text-slate-300 font-medium">Aucun plan généré pour l'instant</p>
-          <p class="text-sm text-slate-400 mt-1">L'IA analysera ton emploi du temps et tes devoirs pour proposer une soirée de révision optimale.</p>
-        </div>
+        </form>
       </section>
 
+      <footer class="max-w-6xl mx-auto px-4 pb-10">
+        <p class="text-xs text-slate-400 text-center">Emploi du temps ADE · Devoirs (SQLite) · Génération IA à la demande · Projet personnel</p>
+      </footer>
     </main>
-
-    <footer class="max-w-6xl w-full mx-auto px-4 pb-10">
-      <p class="text-xs text-slate-400 text-center">Données locales (SQLite) · Génération IA à la demande · Projet personnel</p>
-    </footer>
   </div>
 
   <!-- ==================== APPLICATION VUE ==================== -->
   <script>
     const API_BASE = 'http://localhost:8000/api';
-
     const { createApp } = Vue;
 
     createApp({
       data() {
         return {
+          ongletActif: 'dashboard',
+          onglets: [
+            { id: 'dashboard', label: 'Dashboard', icone: '📊' },
+            { id: 'semaine', label: 'Emploi du Temps', icone: '📅' },
+            { id: 'devoirs', label: 'Devoirs', icone: '📋' },
+            { id: 'config', label: 'Configuration', icone: '⚙️' },
+          ],
+          colonnes: [
+            { id: 'a_faire', label: 'À faire', icone: '🔴', badge: 'bg-rose-100 text-rose-700' },
+            { id: 'en_cours', label: 'En cours', icone: '🟡', badge: 'bg-amber-100 text-amber-700' },
+            { id: 'termine', label: 'Terminé', icone: '🟢', badge: 'bg-emerald-100 text-emerald-700' },
+          ],
+          types: [
+            { id: 'devoir', label: 'Devoir', icone: '📝' },
+            { id: 'ie', label: 'IE', icone: '📄' },
+            { id: 'ds', label: 'DS', icone: '📝' },
+            { id: 'exam', label: 'Examen', icone: '🎓' },
+          ],
           dateDuJour: new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
           heureActuelle: '',
           // Emploi du temps
           cours: [],
           chargementCours: false,
           erreurCours: null,
+          coursSemaine: [],
+          chargementSemaine: false,
+          erreurSemaine: null,
+          semaineDate: '',
+          semaineInfo: { date_debut: '', date_fin: '' },
           // Devoirs
           devoirs: [],
-          nouveauDevoir: { titre: '', matiere: '', echeance: '' },
-          chargementDevoirs: false,
+          nouveauDevoir: { titre: '', matiere: '', echeance: '', type: 'devoir', statut: 'a_faire' },
+          nouveauDevoirRapide: '',
           erreurDevoirs: null,
           // Plan IA
           plan: null,
           chargementPlan: false,
           erreurPlan: null,
           planCopie: false,
+          // Configuration
+          config: { username: '', ade_url: '', gemini_key: '' },
+          chargementConfig: false,
+          configEnregistrement: false,
+          configMessage: '',
+          configErreur: '',
         };
       },
 
       computed: {
-        devoirsAFaire() {
-          return this.devoirs.filter((d) => !d.fait).length;
-        },
-        prochaineEcheance() {
-          const aFaire = this.devoirs.filter((d) => !d.fait && d.echeance);
-          if (!aFaire.length) return '—';
-          aFaire.sort((a, b) => new Date(a.echeance) - new Date(b.echeance));
-          return new Date(aFaire[0].echeance + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+        identifiantAffichable() {
+          return this.config.username || 'Étudiant';
         },
         planContenu() {
           const p = this.plan;
           if (!p) return null;
           return p.plan && typeof p.plan === 'object' ? p.plan : p;
         },
-        sessions() {
+        planning() {
           const pc = this.planContenu;
-          return pc && Array.isArray(pc.sessions) ? pc.sessions : [];
+          return pc && Array.isArray(pc.planning) ? pc.planning : [];
         },
-        dureeTotale() {
-          return this.sessions.reduce((total, s) => total + (Number(s.duree_minutes) || 0), 0);
+        joursSemaine() {
+          const parDate = {};
+          for (const c of this.coursSemaine) {
+            if (!parDate[c.date]) parDate[c.date] = [];
+            parDate[c.date].push(c);
+          }
+          const dates = Object.keys(parDate).sort();
+          return dates.map((dt) => ({
+            date: dt,
+            libelle: this.libelleJour(dt),
+            estAujourdhui: dt === this.dateDuJourIso,
+            cours: parDate[dt].sort((a, b) => a.debut.localeCompare(b.debut)),
+          }));
         },
-        dureeFormattee() {
-          const h = Math.floor(this.dureeTotale / 60);
-          const m = this.dureeTotale % 60;
-          return h > 0 ? `${h} h ${m} min` : `${m} min`;
+        dateDuJourIso() {
+          const d = new Date();
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         },
       },
 
@@ -400,63 +710,118 @@
             const data = await res.json();
             this.cours = data.cours || [];
           } catch (_) {
-            this.erreurCours = "Impossible de synchroniser l'emploi du temps. Lance le backend (uvicorn main:app) et vérifie ADE_ICS_URL.";
+            this.erreurCours = "Impossible de synchroniser l'emploi du temps. Lance le backend (uvicorn main:app).";
           } finally {
             if (!silencieux) this.chargementCours = false;
           }
+        },
+        async chargerSemaine() {
+          this.chargementSemaine = true;
+          this.erreurSemaine = null;
+          try {
+            const dateParam = this.semaineDate ? `?date=${this.semaineDate}` : '';
+            const res = await fetch(`${API_BASE}/cours-semaine${dateParam}`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            this.coursSemaine = data.cours || [];
+            this.semaineInfo = { date_debut: data.date_debut || '', date_fin: data.date_fin || '' };
+          } catch (_) {
+            this.erreurSemaine = 'Impossible de charger l’emploi du temps de la semaine.';
+          } finally {
+            this.chargementSemaine = false;
+          }
+        },
+        changerSemaine(ecartJours) {
+          if (!this.semaineDate) return;
+          const d = new Date(this.semaineDate + 'T00:00:00');
+          d.setDate(d.getDate() + ecartJours);
+          this.semaineDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          this.chargerSemaine();
         },
         estEnCours(c) {
           if (!this.heureActuelle) return false;
           return this.heureActuelle >= c.debut && this.heureActuelle < c.fin;
         },
+        libelleJour(dt) {
+          const d = new Date(dt + 'T00:00:00');
+          const s = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+          return s.charAt(0).toUpperCase() + s.slice(1);
+        },
+        formaterCourte(dt) {
+          return new Date(dt + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+        },
 
         // ---- Devoirs ----
         async chargerDevoirs() {
-          this.chargementDevoirs = true;
           this.erreurDevoirs = null;
           try {
             const res = await fetch(`${API_BASE}/devoirs`);
             if (!res.ok) throw new Error();
             this.devoirs = await res.json();
           } catch (_) {
-            this.erreurDevoirs = 'Impossible de charger les devoirs depuis la base SQLite.';
-          } finally {
-            this.chargementDevoirs = false;
+            this.erreurDevoirs = 'Impossible de charger les devoirs depuis le serveur.';
           }
         },
         async ajouterDevoir() {
-          if (!this.nouveauDevoir.titre.trim()) return;
-          const body = {
-            titre: this.nouveauDevoir.titre.trim(),
-            matiere: this.nouveauDevoir.matiere.trim(),
-            echeance: this.nouveauDevoir.echeance || null,
-            fait: false,
-          };
+          const titre = this.nouveauDevoir.titre.trim();
+          if (!titre) return;
           try {
             const res = await fetch(`${API_BASE}/devoirs`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
+              body: JSON.stringify({
+                titre,
+                matiere: this.nouveauDevoir.matiere.trim(),
+                echeance: this.nouveauDevoir.echeance || '',
+                type: this.nouveauDevoir.type,
+                statut: this.nouveauDevoir.statut,
+              }),
             });
             if (!res.ok) throw new Error();
-            this.nouveauDevoir = { titre: '', matiere: '', echeance: '' };
+            this.nouveauDevoir = { titre: '', matiere: '', echeance: '', type: 'devoir', statut: 'a_faire' };
             await this.chargerDevoirs();
           } catch (_) {
             this.erreurDevoirs = "Impossible d'ajouter le devoir.";
           }
         },
-        async basculerFait(d) {
+        async ajouterDevoirRapide() {
+          const titre = this.nouveauDevoirRapide.trim();
+          if (!titre) return;
+          try {
+            const res = await fetch(`${API_BASE}/devoirs`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ titre, statut: 'a_faire' }),
+            });
+            if (!res.ok) throw new Error();
+            this.nouveauDevoirRapide = '';
+            await this.chargerDevoirs();
+          } catch (_) {
+            this.erreurDevoirs = "Impossible d'ajouter le devoir.";
+          }
+        },
+        async changerStatut(d, statut) {
           try {
             const res = await fetch(`${API_BASE}/devoirs/${d.id}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fait: !d.fait }),
+              body: JSON.stringify({ statut }),
             });
             if (!res.ok) throw new Error();
-            await this.chargerDevoirs();
+            d.statut = statut;
           } catch (_) {
-            this.erreurDevoirs = 'Impossible de mettre à jour le devoir.';
+            this.erreurDevoirs = 'Impossible de mettre à jour le statut du devoir.';
           }
+        },
+        cycleStatut(d) {
+          const ordre = ['a_faire', 'en_cours', 'termine'];
+          const suivant = ordre[(ordre.indexOf(d.statut) + 1) % ordre.length];
+          this.changerStatut(d, suivant);
+        },
+        deplacer(d, direction) {
+          const ordre = ['a_faire', 'en_cours', 'termine'];
+          const suivant = ordre[ordre.indexOf(d.statut) + direction];
+          if (suivant) this.changerStatut(d, suivant);
         },
         async supprimerDevoir(d) {
           try {
@@ -467,29 +832,62 @@
             this.erreurDevoirs = 'Impossible de supprimer le devoir.';
           }
         },
-        libelleEcheance(d) {
-          const diff = this.joursRestants(d);
-          if (diff < 0) return 'En retard';
-          if (diff === 0) return "Pour aujourd'hui";
-          if (diff === 1) return 'Demain';
-          if (diff === 2) return 'Dans 2 jours';
-          return `Dans ${diff} jours`;
+        devoirsParStatut(statut) {
+          return this.devoirs.filter((d) => d.statut === statut);
         },
-        echeanceCouleur(d) {
-          const diff = this.joursRestants(d);
-          if (diff <= 1) return 'bg-rose-50 text-rose-600 border-rose-200';
-          if (diff <= 4) return 'bg-amber-50 text-amber-600 border-amber-200';
-          return 'bg-slate-50 text-slate-500 border-slate-200';
+        nbStatut(statut) {
+          return this.devoirs.filter((d) => d.statut === statut).length;
         },
-        joursRestants(d) {
-          const echeance = new Date(d.echeance + 'T00:00:00');
+        statutLabel(s) {
+          return { a_faire: 'À faire', en_cours: 'En cours', termine: 'Terminé' }[s] || s;
+        },
+        statutDot(s) {
+          return { a_faire: 'bg-rose-500', en_cours: 'bg-amber-400', termine: 'bg-emerald-500' }[s] || 'bg-slate-400';
+        },
+        statutBadge(s) {
+          return {
+            a_faire: 'bg-rose-100 text-rose-700',
+            en_cours: 'bg-amber-100 text-amber-700',
+            termine: 'bg-emerald-100 text-emerald-700',
+          }[s] || 'bg-slate-100 text-slate-600';
+        },
+        typeLabel(t) {
+          return { devoir: 'Devoir', ie: 'IE', ds: 'DS', exam: 'Examen' }[t] || t;
+        },
+        typeBadge(t) {
+          return {
+            devoir: 'bg-slate-100 text-slate-600',
+            ie: 'bg-sky-100 text-sky-700',
+            ds: 'bg-orange-100 text-orange-700',
+            exam: 'bg-rose-100 text-rose-700',
+          }[t] || 'bg-slate-100 text-slate-600';
+        },
+        formaterEcheance(e) {
+          return new Date(e + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+        },
+        joursRestants(e) {
+          const echeance = new Date(e + 'T00:00:00');
           const aujourd = new Date();
           aujourd.setHours(0, 0, 0, 0);
           return Math.round((echeance - aujourd) / 86400000);
         },
+        libelleEcheance(e) {
+          const diff = this.joursRestants(e);
+          if (diff < 0) return 'En retard';
+          if (diff === 0) return "Aujourd'hui";
+          if (diff === 1) return 'Demain';
+          return `J-${diff}`;
+        },
+        echeanceCouleur(e) {
+          const diff = this.joursRestants(e);
+          if (diff <= 0) return 'bg-rose-50 text-rose-600 border-rose-200';
+          if (diff <= 3) return 'bg-amber-50 text-amber-600 border-amber-200';
+          if (diff <= 7) return 'bg-sky-50 text-sky-600 border-sky-200';
+          return 'bg-slate-50 text-slate-500 border-slate-200';
+        },
 
         // ---- Plan IA ----
-        async genererPlan() {
+        async genererPlanIA() {
           this.chargementPlan = true;
           this.erreurPlan = null;
           try {
@@ -503,11 +901,11 @@
           }
         },
         async copierPlan() {
-          const conseil = this.planContenu.conseil_soir || '';
-          const sessionsTxt = this.sessions
-            .map((s) => `- ${s.matiere} (${s.duree_minutes} min) : ${s.objectif}`)
+          const conseil = this.planContenu.conseil || '';
+          const planningTxt = this.planning
+            .map((s) => `- ${s.heure} · ${s.matiere} : ${s.action}`)
             .join('\n');
-          const texte = `Plan de révision du soir\n\n${conseil}\n\n${sessionsTxt}`;
+          const texte = `Plan de révision du soir\n\n${conseil}\n\n${planningTxt}`;
           try {
             await navigator.clipboard.writeText(texte);
             this.planCopie = true;
@@ -522,6 +920,39 @@
           return `Erreur ${res.status}.`;
         },
 
+        // ---- Configuration ----
+        async chargerConfig() {
+          this.chargementConfig = true;
+          this.configErreur = '';
+          try {
+            const res = await fetch(`${API_BASE}/config`);
+            if (!res.ok) throw new Error();
+            this.config = await res.json();
+          } catch (_) {
+            this.configErreur = 'Impossible de charger la configuration.';
+          } finally {
+            this.chargementConfig = false;
+          }
+        },
+        async enregistrerConfig() {
+          this.configEnregistrement = true;
+          this.configMessage = '';
+          this.configErreur = '';
+          try {
+            const res = await fetch(`${API_BASE}/config`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.config),
+            });
+            if (!res.ok) throw new Error();
+            this.configMessage = 'Configuration enregistrée avec succès.';
+          } catch (_) {
+            this.configErreur = 'Impossible d’enregistrer la configuration.';
+          } finally {
+            this.configEnregistrement = false;
+          }
+        },
+
         // ---- Horloge ----
         majHeure() {
           this.heureActuelle = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -529,8 +960,12 @@
       },
 
       created() {
+        const aujourd = new Date();
+        this.semaineDate = `${aujourd.getFullYear()}-${String(aujourd.getMonth() + 1).padStart(2, '0')}-${String(aujourd.getDate()).padStart(2, '0')}`;
         this.chargerCours();
+        this.chargerSemaine();
         this.chargerDevoirs();
+        this.chargerConfig();
         this.majHeure();
         setInterval(() => this.chargerCours(true), 60000);
         setInterval(() => this.majHeure(), 30000);

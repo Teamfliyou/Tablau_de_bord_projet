@@ -1,69 +1,53 @@
-"""Couche d'accès aux données (SQLite via SQLModel).
+from sqlalchemy import Column, Integer, String, create_engine, text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-Ce module centralise :
-  - le moteur SQLAlchemy / SQLModel pointant vers la base SQLite ;
-  - la définition du modèle `Devoir` (table `devoir`) ;
-  - la fonction de création des tables au démarrage ;
-  - la dépendance FastAPI `get_session` pour injecter une session dans les routes.
+DATABASE_URL = "sqlite:///./app.db"
 
-La chaîne de connexion est lue depuis la variable d'environnement
-`DATABASE_URL` (voir `.env.example`).
-"""
-
-import os
-from typing import Iterator, Optional
-
-from dotenv import load_dotenv
-from sqlmodel import Field, Session, SQLModel, create_engine
-
-load_dotenv()
-
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tableau_bord.db")
-
-# `check_same_thread=False` : indispensable pour SQLite en mode web
-# (les sessions peuvent être utilisées depuis des threads différents).
 engine = create_engine(
     DATABASE_URL,
-    echo=False,
-    connect_args={"check_same_thread": False}
-    if DATABASE_URL.startswith("sqlite")
-    else {},
+    connect_args={"check_same_thread": False},
 )
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
 
-def create_db_and_tables() -> None:
-    """Crée les tables manquantes dans la base (idempotent)."""
-    SQLModel.metadata.create_all(engine)
+class Devoir(Base):
+    __tablename__ = "devoirs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    titre = Column(String, nullable=False)
+    matiere = Column(String, default="")
+    echeance = Column(String, default="")  # format YYYY-MM-DD
+    type = Column(String, default="devoir")  # devoir | ie | ds | exam
+    # a_faire | en_cours | termine
+    statut = Column(String, default="a_faire")
 
 
-def get_session() -> Iterator[Session]:
-    """Dépendance FastAPI : fournit une session SQLModel par requête."""
-    with Session(engine) as session:
-        yield session
+class Config(Base):
+    __tablename__ = "config"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String, default="")
+    ade_url = Column(String, default="")
+    gemini_key = Column(String, default="")
 
 
-class Devoir(SQLModel, table=True):
-    """Un devoir à rendre, stocké en base.
-
-    `table=True` indique que ce modèle correspond à une vraie table SQLite.
-    """
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    titre: str = Field(min_length=1, description="Intitulé du devoir")
-    matiere: str = Field(default="", description="Matière associée")
-    echeance: Optional[str] = Field(
-        default=None, description="Échéance au format YYYY-MM-DD"
-    )
-    fait: bool = Field(default=False, description="Devoir terminé ou non")
+Base.metadata.create_all(bind=engine)
 
 
-class DevoirUpdate(SQLModel):
-    """Schéma de mise à jour partielle d'un devoir (PATCH).
+def _migrer():
+    """Ajoute les nouvelles colonnes à une base existante sans perdre les données."""
+    with engine.begin() as conn:
+        colonnes = {row[1] for row in conn.execute(text("PRAGMA table_info(devoirs)"))}
+        ajouts = {
+            "matiere": "VARCHAR DEFAULT ''",
+            "echeance": "VARCHAR DEFAULT ''",
+            "type": "VARCHAR DEFAULT 'devoir'",
+        }
+        for nom, ddl in ajouts.items():
+            if nom not in colonnes:
+                conn.execute(text(f"ALTER TABLE devoirs ADD COLUMN {nom} {ddl}"))
 
-    Tous les champs sont optionnels : seuls ceux fournis sont modifiés.
-    """
 
-    titre: Optional[str] = None
-    matiere: Optional[str] = None
-    echeance: Optional[str] = None
-    fait: Optional[bool] = None
+_migrer()

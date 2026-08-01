@@ -1,0 +1,64 @@
+# ==========================
+#  Python
+# ==========================
+__pycache__/
+*.pyc
+*.py[cod]
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ==========================
+#  Environnements virtuels
+# ==========================
+.venv/
+venv/
+
+# ==========================
+#  Environnement / Secrets
+#  => Ne jamais versionner ces fichiers !
+# ==========================
+.env
+.env.local
+.env.*.local
+
+# ==========================
+#  Base de données
+# ==========================
+*.db
+app.db
+tableau_bord.db
+*.sqlite
+*.sqlite3
+
+# ==========================
+#  Node.js / Frontend
+# ==========================
+node_modules/
+frontend/dist/
+dist/
+*.tgz
+
+# ==========================
+#  IDE / Éditeurs
+# ==========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ==========================
+#  Système / Divers
+# ==========================
+.DS_Store
+Thumbs.db
+*.log
+logs/
+tmp/

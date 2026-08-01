@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tableau de bord étudiant</title>
+  <link rel="icon" href="data:," />
+
+  <!-- Police Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS (CDN, version de dev) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+
+  <!-- Vue.js 3 (build global avec compilateur de templates) -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+
+  <div id="app" class="min-h-screen flex flex-col">
+
+    <!-- ==================== HEADER ==================== -->
+    <header class="max-w-6xl w-full mx-auto px-4 pt-10">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.42a12.08 12.08 0 01.84 6.42M12 14v6M5 10v6a4 4 0 0014 0" />
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900">Tableau de bord étudiant</h1>
+            <p class="text-sm text-slate-500">Emploi du temps ADE · Devoirs · Plan de révision IA</p>
+          </div>
+        </div>
+        <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm text-sm text-slate-600">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          {{ dateDuJour }}
+        </span>
+      </div>
+
+      <!-- Statistiques -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Cours aujourd'hui</p>
+          <p class="text-2xl font-bold text-slate-900 mt-1">{{ cours.length }}</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Devoirs à faire</p>
+          <p class="text-2xl font-bold text-slate-900 mt-1">{{ devoirsAFaire }}</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Prochaine échéance</p>
+          <p class="text-2xl font-bold text-slate-900 mt-1">{{ prochaineEcheance }}</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Heure locale</p>
+          <p class="text-2xl font-bold text-indigo-600 mt-1 tabular-nums">{{ heureActuelle }}</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- ==================== GRILLE BENTO ==================== -->
+    <main class="max-w-6xl w-full mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-5 gap-6 flex-1">
+
+      <!-- ---------- Carte 1 : Emploi du temps ---------- -->
+      <section class="lg:col-span-3 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="font-semibold text-slate-900">Emploi du temps du jour</h2>
+              <p class="text-xs text-slate-400">Synchronisé avec ton flux ADE · actualisation toutes les 60 s</p>
+            </div>
+          </div>
+          <button
+            @click="chargerCours()"
+            :disabled="chargementCours"
+            class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-medium shadow-sm transition">
+            <svg :class="{ 'animate-spin': chargementCours }" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {{ chargementCours ? 'Synchro…' : 'Rafraîchir' }}
+          </button>
+        </div>
+
+        <p v-if="erreurCours" class="mt-5 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-4">{{ erreurCours }}</p>
+
+        <ul v-else-if="cours.length" class="mt-5 space-y-3">
+          <li
+            v-for="c in cours"
+            :key="c.debut_iso"
+            class="flex items-start gap-4 rounded-xl border p-4 transition"
+            :class="estEnCours(c) ? 'border-indigo-300 bg-indigo-50/70 shadow-sm' : 'border-slate-100 hover:border-indigo-200 hover:shadow-sm'">
+            <div class="w-16 text-center shrink-0">
+              <p class="font-bold text-slate-900 tabular-nums">{{ c.debut }}</p>
+              <p class="text-slate-300 text-xs leading-none my-1">—</p>
+              <p class="text-sm text-slate-500 tabular-nums">{{ c.fin }}</p>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span v-if="estEnCours(c)" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white bg-emerald-500 animate-pulse">EN COURS</span>
+                <h3 class="font-semibold text-slate-800">{{ c.titre }}</h3>
+              </div>
+              <p class="text-sm text-slate-500 mt-1 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                {{ c.salle || 'Salle non renseignée' }}
+              </p>
+            </div>
+          </li>
+        </ul>
+
+        <div v-else class="mt-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 p-10 text-center">
+          <p class="font-medium text-slate-600">Aucun cours prévu aujourd'hui</p>
+          <p class="text-sm text-slate-400 mt-1">Profites-en pour avancer sur tes devoirs ou préparer tes révisions.</p>
+        </div>
+      </section>
+
+      <!-- ---------- Carte 2 : Devoirs ---------- -->
+      <section class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+              <svg class="w-5 h-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="font-semibold text-slate-900">Devoirs</h2>
+              <p class="text-xs text-slate-400">
+                {{ devoirs.length }} au total ·
+                <span :class="devoirsAFaire ? 'text-indigo-600 font-medium' : 'text-emerald-600 font-medium'">{{ devoirsAFaire }} à faire</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Formulaire d'ajout -->
+        <form @submit.prevent="ajouterDevoir" class="mt-5 space-y-3">
+          <input
+            v-model="nouveauDevoir.titre"
+            required
+            type="text"
+            placeholder="Intitulé du devoir"
+            class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+          <div class="grid grid-cols-2 gap-3">
+            <input
+              v-model="nouveauDevoir.matiere"
+              type="text"
+              placeholder="Matière"
+              class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <input
+              v-model="nouveauDevoir.echeance"
+              type="date"
+              class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+          </div>
+          <button
+            type="submit"
+            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium shadow-sm transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Ajouter le devoir
+          </button>
+        </form>
+
+        <p v-if="erreurDevoirs" class="mt-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-4">{{ erreurDevoirs }}</p>
+
+        <!-- Liste -->
+        <ul v-if="devoirs.length" class="mt-5 divide-y divide-slate-100">
+          <li v-for="d in devoirs" :key="d.id" class="flex items-center gap-3 py-3">
+            <button
+              type="button"
+              @click="basculerFait(d)"
+              :title="d.fait ? 'Marquer comme non fait' : 'Marquer comme fait'"
+              class="w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition"
+              :class="d.fait ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 hover:border-indigo-400'">
+              <svg v-if="d.fait" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </button>
+            <div class="flex-1 min-w-0">
+              <p class="truncate font-medium" :class="d.fait ? 'line-through text-slate-400' : 'text-slate-800'">{{ d.titre }}</p>
+              <div class="flex flex-wrap items-center gap-2 mt-1">
+                <span v-if="d.matiere" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-600 border border-indigo-100">{{ d.matiere }}</span>
+                <span
+                  v-if="d.echeance"
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs border"
+                  :class="echeanceCouleur(d)">
+                  {{ libelleEcheance(d) }}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              @click="supprimerDevoir(d)"
+              title="Supprimer"
+              class="text-slate-300 hover:text-rose-500 transition">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </li>
+        </ul>
+
+        <div v-else-if="!erreurDevoirs" class="mt-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 p-8 text-center">
+          <p class="font-medium text-slate-600">Aucun devoir pour l'instant</p>
+          <p class="text-sm text-slate-400 mt-1">Ajoute ton premier devoir avec le formulaire ci-dessus.</p>
+        </div>
+      </section>
+
+      <!-- ---------- Carte 3 : Plan de révision IA ---------- -->
+      <section class="lg:col-span-5 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 rounded-2xl shadow-xl border border-indigo-500/20 p-6 md:p-8">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div class="flex items-center gap-4">
+            <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/40">
+              <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-xl font-bold text-white">Plan de révision IA</h2>
+              <p class="text-sm text-indigo-200/70">Coach personnel basé sur tes cours et tes échéances, propulsé par Gemini.</p>
+            </div>
+          </div>
+          <button
+            @click="genererPlan"
+            :disabled="chargementPlan"
+            class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 disabled:opacity-60 text-white text-sm font-semibold shadow-lg shadow-indigo-500/40 transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            {{ chargementPlan ? 'Génération…' : (plan ? 'Régénérer le plan' : 'Générer mon plan du soir') }}
+          </button>
+        </div>
+
+        <!-- État : chargement -->
+        <div v-if="chargementPlan" class="mt-8 rounded-xl bg-white/5 border border-white/10 p-10 text-center">
+          <svg class="animate-spin w-8 h-8 text-indigo-300 mx-auto" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p class="mt-4 text-slate-200 font-medium">L'IA analyse ton emploi du temps et tes devoirs…</p>
+          <p class="mt-1 text-sm text-slate-400">Le plan de la soirée arrive dans quelques secondes.</p>
+        </div>
+
+        <!-- État : erreur -->
+        <div v-else-if="erreurPlan" class="mt-8 rounded-xl bg-rose-500/10 border border-rose-400/30 p-4 text-rose-200 text-sm">
+          {{ erreurPlan }}
+        </div>
+
+        <!-- État : plan généré -->
+        <div v-else-if="plan" class="mt-8 space-y-6">
+          <div class="rounded-xl bg-white/5 border border-white/10 p-5">
+            <p class="text-xs font-semibold uppercase tracking-wider text-indigo-300 mb-2">Conseil du soir</p>
+            <p class="text-slate-100 leading-relaxed">{{ planContenu.conseil_soir }}</p>
+          </div>
+
+          <div v-if="sessions.length" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              v-for="(s, i) in sessions"
+              :key="i"
+              class="rounded-xl bg-white/5 border border-white/10 p-5 flex flex-col">
+              <div class="flex items-center justify-between">
+                <span class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-200 font-semibold flex items-center justify-center text-sm tabular-nums">{{ i + 1 }}</span>
+                <span class="text-sm font-semibold text-white tabular-nums">{{ s.duree_minutes }} min</span>
+              </div>
+              <h3 class="text-slate-50 font-semibold mt-3">{{ s.matiere }}</h3>
+              <p class="text-sm text-slate-300 mt-1 flex-1">{{ s.objectif }}</p>
+              <span v-if="s.technique" class="self-start mt-3 px-2.5 py-1 rounded-full bg-violet-500/20 text-violet-200 text-xs">{{ s.technique }}</span>
+            </div>
+          </div>
+          <p v-else class="text-sm text-slate-400">L'IA n'a pas proposé de session structurée cette fois-ci.</p>
+
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <p class="text-sm text-indigo-200/70">Total estimé : <span class="font-semibold text-white tabular-nums">{{ dureeFormattee }}</span> de travail effectif</p>
+            <div class="flex items-center gap-3">
+              <span v-if="plan.modele" class="text-xs text-slate-400">Modèle : {{ plan.modele }}</span>
+              <button
+                @click="copierPlan"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                {{ planCopie ? 'Copié !' : 'Copier le plan' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- État : initial -->
+        <div v-else class="mt-8 rounded-xl bg-white/5 border border-dashed border-white/15 p-10 text-center">
+          <p class="text-slate-300 font-medium">Aucun plan généré pour l'instant</p>
+          <p class="text-sm text-slate-400 mt-1">L'IA analysera ton emploi du temps et tes devoirs pour proposer une soirée de révision optimale.</p>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="max-w-6xl w-full mx-auto px-4 pb-10">
+      <p class="text-xs text-slate-400 text-center">Données locales (SQLite) · Génération IA à la demande · Projet personnel</p>
+    </footer>
+  </div>
+
+  <!-- ==================== APPLICATION VUE ==================== -->
+  <script>
+    const API_BASE = 'http://localhost:8000/api';
+
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          dateDuJour: new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+          heureActuelle: '',
+          // Emploi du temps
+          cours: [],
+          chargementCours: false,
+          erreurCours: null,
+          // Devoirs
+          devoirs: [],
+          nouveauDevoir: { titre: '', matiere: '', echeance: '' },
+          chargementDevoirs: false,
+          erreurDevoirs: null,
+          // Plan IA
+          plan: null,
+          chargementPlan: false,
+          erreurPlan: null,
+          planCopie: false,
+        };
+      },
+
+      computed: {
+        devoirsAFaire() {
+          return this.devoirs.filter((d) => !d.fait).length;
+        },
+        prochaineEcheance() {
+          const aFaire = this.devoirs.filter((d) => !d.fait && d.echeance);
+          if (!aFaire.length) return '—';
+          aFaire.sort((a, b) => new Date(a.echeance) - new Date(b.echeance));
+          return new Date(aFaire[0].echeance + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+        },
+        planContenu() {
+          const p = this.plan;
+          if (!p) return null;
+          return p.plan && typeof p.plan === 'object' ? p.plan : p;
+        },
+        sessions() {
+          const pc = this.planContenu;
+          return pc && Array.isArray(pc.sessions) ? pc.sessions : [];
+        },
+        dureeTotale() {
+          return this.sessions.reduce((total, s) => total + (Number(s.duree_minutes) || 0), 0);
+        },
+        dureeFormattee() {
+          const h = Math.floor(this.dureeTotale / 60);
+          const m = this.dureeTotale % 60;
+          return h > 0 ? `${h} h ${m} min` : `${m} min`;
+        },
+      },
+
+      methods: {
+        // ---- Emploi du temps ----
+        async chargerCours(silencieux = false) {
+          if (!silencieux) this.chargementCours = true;
+          this.erreurCours = null;
+          try {
+            const res = await fetch(`${API_BASE}/cours-du-jour`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            this.cours = data.cours || [];
+          } catch (_) {
+            this.erreurCours = "Impossible de synchroniser l'emploi du temps. Lance le backend (uvicorn main:app) et vérifie ADE_ICS_URL.";
+          } finally {
+            if (!silencieux) this.chargementCours = false;
+          }
+        },
+        estEnCours(c) {
+          if (!this.heureActuelle) return false;
+          return this.heureActuelle >= c.debut && this.heureActuelle < c.fin;
+        },
+
+        // ---- Devoirs ----
+        async chargerDevoirs() {
+          this.chargementDevoirs = true;
+          this.erreurDevoirs = null;
+          try {
+            const res = await fetch(`${API_BASE}/devoirs`);
+            if (!res.ok) throw new Error();
+            this.devoirs = await res.json();
+          } catch (_) {
+            this.erreurDevoirs = 'Impossible de charger les devoirs depuis la base SQLite.';
+          } finally {
+            this.chargementDevoirs = false;
+          }
+        },
+        async ajouterDevoir() {
+          if (!this.nouveauDevoir.titre.trim()) return;
+          const body = {
+            titre: this.nouveauDevoir.titre.trim(),
+            matiere: this.nouveauDevoir.matiere.trim(),
+            echeance: this.nouveauDevoir.echeance || null,
+            fait: false,
+          };
+          try {
+            const res = await fetch(`${API_BASE}/devoirs`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) throw new Error();
+            this.nouveauDevoir = { titre: '', matiere: '', echeance: '' };
+            await this.chargerDevoirs();
+          } catch (_) {
+            this.erreurDevoirs = "Impossible d'ajouter le devoir.";
+          }
+        },
+        async basculerFait(d) {
+          try {
+            const res = await fetch(`${API_BASE}/devoirs/${d.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fait: !d.fait }),
+            });
+            if (!res.ok) throw new Error();
+            await this.chargerDevoirs();
+          } catch (_) {
+            this.erreurDevoirs = 'Impossible de mettre à jour le devoir.';
+          }
+        },
+        async supprimerDevoir(d) {
+          try {
+            const res = await fetch(`${API_BASE}/devoirs/${d.id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error();
+            await this.chargerDevoirs();
+          } catch (_) {
+            this.erreurDevoirs = 'Impossible de supprimer le devoir.';
+          }
+        },
+        libelleEcheance(d) {
+          const diff = this.joursRestants(d);
+          if (diff < 0) return 'En retard';
+          if (diff === 0) return "Pour aujourd'hui";
+          if (diff === 1) return 'Demain';
+          if (diff === 2) return 'Dans 2 jours';
+          return `Dans ${diff} jours`;
+        },
+        echeanceCouleur(d) {
+          const diff = this.joursRestants(d);
+          if (diff <= 1) return 'bg-rose-50 text-rose-600 border-rose-200';
+          if (diff <= 4) return 'bg-amber-50 text-amber-600 border-amber-200';
+          return 'bg-slate-50 text-slate-500 border-slate-200';
+        },
+        joursRestants(d) {
+          const echeance = new Date(d.echeance + 'T00:00:00');
+          const aujourd = new Date();
+          aujourd.setHours(0, 0, 0, 0);
+          return Math.round((echeance - aujourd) / 86400000);
+        },
+
+        // ---- Plan IA ----
+        async genererPlan() {
+          this.chargementPlan = true;
+          this.erreurPlan = null;
+          try {
+            const res = await fetch(`${API_BASE}/plan-revision`, { method: 'POST' });
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
+            this.plan = await res.json();
+          } catch (e) {
+            this.erreurPlan = e.message || 'Impossible de générer le plan de révision.';
+          } finally {
+            this.chargementPlan = false;
+          }
+        },
+        async copierPlan() {
+          const conseil = this.planContenu.conseil_soir || '';
+          const sessionsTxt = this.sessions
+            .map((s) => `- ${s.matiere} (${s.duree_minutes} min) : ${s.objectif}`)
+            .join('\n');
+          const texte = `Plan de révision du soir\n\n${conseil}\n\n${sessionsTxt}`;
+          try {
+            await navigator.clipboard.writeText(texte);
+            this.planCopie = true;
+            setTimeout(() => { this.planCopie = false; }, 2000);
+          } catch (_) { /* presse-papiers indisponible */ }
+        },
+        async extraitErreur(res) {
+          try {
+            const data = await res.json();
+            if (data && data.detail) return typeof data.detail === 'string' ? data.detail : 'Erreur serveur.';
+          } catch (_) { /* corps non JSON */ }
+          return `Erreur ${res.status}.`;
+        },
+
+        // ---- Horloge ----
+        majHeure() {
+          this.heureActuelle = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        },
+      },
+
+      created() {
+        this.chargerCours();
+        this.chargerDevoirs();
+        this.majHeure();
+        setInterval(() => this.chargerCours(true), 60000);
+        setInterval(() => this.majHeure(), 30000);
+      },
+    }).mount('#app');
+  </script>
+</body>
+</html>

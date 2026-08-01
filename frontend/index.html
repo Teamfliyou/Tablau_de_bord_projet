@@ -602,6 +602,94 @@
             {{ configEnregistrement ? 'Enregistrement…' : 'Enregistrer la configuration' }}
           </button>
         </form>
+
+        <!-- ============ FILTRES & PERSONNALISATION ============ -->
+        <section class="mt-8 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                <app-icon name="filter" class="w-5 h-5 text-amber-600"></app-icon>
+              </div>
+              <div>
+                <h3 class="font-semibold text-slate-900">Filtres & Personnalisation</h3>
+                <p class="text-xs text-slate-400">Analyse automatique de ton flux ADE : coche uniquement tes groupes (TP/TD/Khôlles).</p>
+              </div>
+            </div>
+            <button
+              @click="analyserCategories"
+              :disabled="chargementCategories"
+              class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition">
+              <svg v-if="chargementCategories" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <app-icon v-else name="search" class="w-4 h-4"></app-icon>
+              {{ chargementCategories ? 'Analyse en cours…' : 'Analyser mon lien ADE' }}
+            </button>
+          </div>
+
+          <p v-if="erreurCategories" class="mt-5 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-4">{{ erreurCategories }}</p>
+          <p v-if="messageCategories" class="mt-5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm p-4">{{ messageCategories }}</p>
+
+          <template v-if="categorisation.groupes.length">
+            <div class="mt-6 border-t border-slate-100 pt-5">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <h4 class="font-semibold text-slate-800 text-sm">Groupes détectés</h4>
+                <div class="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    @click="toutCocher"
+                    class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Tout cocher</button>
+                  <button
+                    type="button"
+                    @click="toutDecocher"
+                    class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Tout décocher</button>
+                  <span class="text-slate-400 tabular-nums">{{ filtresGroupes.length }}/{{ categorisation.groupes.length }} actifs</span>
+                </div>
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button
+                  v-for="g in categorisation.groupes"
+                  :key="g"
+                  type="button"
+                  @click="basculerGroupe(g)"
+                  class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium border transition"
+                  :class="estGroupeCoche(g) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'">
+                  <app-icon v-if="estGroupeCoche(g)" name="check" class="w-3.5 h-3.5"></app-icon>
+                  {{ g }}
+                </button>
+              </div>
+              <p class="text-xs text-slate-400 mt-3">Les cours sans groupe (CM, réunions…) restent toujours visibles. Les TP/TD/Khôlles des groupes non cochés sont masqués du Dashboard et de la Semaine.</p>
+            </div>
+
+            <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-5 border-t border-slate-100 pt-5">
+              <div>
+                <h4 class="font-semibold text-slate-800 text-sm mb-2">Types d'épreuves trouvés</h4>
+                <div class="flex flex-wrap gap-1.5">
+                  <span
+                    v-for="t in categorisation.types"
+                    :key="t"
+                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs bg-sky-50 text-sky-700 border border-sky-100">{{ t }}</span>
+                  <span v-if="!categorisation.types.length" class="text-xs text-slate-400">Aucun type spécifique détecté.</span>
+                </div>
+              </div>
+              <div>
+                <h4 class="font-semibold text-slate-800 text-sm mb-2">Matières uniques</h4>
+                <div class="flex flex-wrap gap-1.5">
+                  <span
+                    v-for="m in categorisation.matieres"
+                    :key="m"
+                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs bg-violet-50 text-violet-700 border border-violet-100">{{ m }}</span>
+                  <span v-if="!categorisation.matieres.length" class="text-xs text-slate-400">Aucune matière détectée.</span>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <div v-else-if="!chargementCategories" class="mt-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 p-8 text-center">
+            <p class="text-sm text-slate-500">Clique sur « Analyser mon lien ADE » pour détecter automatiquement tes groupes (TP/TD/Khôlles), les types d'épreuves et les matières.</p>
+          </div>
+        </section>
       </section>
 
       <footer class="max-w-6xl mx-auto px-4 pb-10">
@@ -627,6 +715,9 @@
       'dot-rose': ["M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z"],
       'dot-amber': ["M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z"],
       'dot-emerald': ["M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z"],
+      filter: ["M22 3H2l8 9.46V19l4 2v-8.54L22 3z"],
+      search: ["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"],
+      check: ["M20 6L9 17l-5-5"],
     };
 
     createApp({
@@ -677,6 +768,12 @@
           configEnregistrement: false,
           configMessage: '',
           configErreur: '',
+          // Filtres & personnalisation
+          categorisation: { groupes: [], types: [], matieres: [] },
+          chargementCategories: false,
+          erreurCategories: '',
+          messageCategories: '',
+          filtresGroupes: [],
         };
       },
 
@@ -715,11 +812,17 @@
 
       methods: {
         // ---- Emploi du temps ----
+        filtresQuery() {
+          const params = new URLSearchParams();
+          this.filtresGroupes.forEach((g) => params.append('groupes', g));
+          const qs = params.toString();
+          return qs ? `?${qs}` : '';
+        },
         async chargerCours(silencieux = false) {
           if (!silencieux) this.chargementCours = true;
           this.erreurCours = null;
           try {
-            const res = await fetch(`${API_BASE}/cours-du-jour`);
+            const res = await fetch(`${API_BASE}/cours-du-jour${this.filtresQuery()}`);
             if (!res.ok) throw new Error();
             const data = await res.json();
             this.cours = data.cours || [];
@@ -733,8 +836,11 @@
           this.chargementSemaine = true;
           this.erreurSemaine = null;
           try {
-            const dateParam = this.semaineDate ? `?date=${this.semaineDate}` : '';
-            const res = await fetch(`${API_BASE}/cours-semaine${dateParam}`);
+            const params = new URLSearchParams();
+            if (this.semaineDate) params.append('date', this.semaineDate);
+            this.filtresGroupes.forEach((g) => params.append('groupes', g));
+            const qs = params.toString();
+            const res = await fetch(`${API_BASE}/cours-semaine${qs ? `?${qs}` : ''}`);
             if (!res.ok) throw new Error();
             const data = await res.json();
             this.coursSemaine = data.cours || [];
@@ -905,7 +1011,7 @@
           this.chargementPlan = true;
           this.erreurPlan = null;
           try {
-            const res = await fetch(`${API_BASE}/plan-revision`, { method: 'POST' });
+            const res = await fetch(`${API_BASE}/plan-revision${this.filtresQuery()}`, { method: 'POST' });
             if (!res.ok) throw new Error(await this.extraitErreur(res));
             this.plan = await res.json();
           } catch (e) {
@@ -971,9 +1077,74 @@
         majHeure() {
           this.heureActuelle = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         },
+
+        // ---- Filtres & personnalisation ----
+        chargerFiltres() {
+          try {
+            const sauvegardes = JSON.parse(localStorage.getItem('dashboard_filtres_groupes') || '[]');
+            this.filtresGroupes = Array.isArray(sauvegardes) ? sauvegardes.filter(Boolean) : [];
+          } catch (_) {
+            this.filtresGroupes = [];
+          }
+        },
+        sauvegarderFiltres() {
+          try {
+            localStorage.setItem('dashboard_filtres_groupes', JSON.stringify(this.filtresGroupes));
+          } catch (_) { /* stockage indisponible */ }
+        },
+        estGroupeCoche(g) {
+          return this.filtresGroupes.includes(g);
+        },
+        basculerGroupe(g) {
+          const i = this.filtresGroupes.indexOf(g);
+          if (i === -1) this.filtresGroupes.push(g);
+          else this.filtresGroupes.splice(i, 1);
+          this.sauvegarderFiltres();
+          this.chargerCours();
+          this.chargerSemaine();
+        },
+        toutCocher() {
+          this.filtresGroupes = [...this.categorisation.groupes];
+          this.sauvegarderFiltres();
+          this.chargerCours();
+          this.chargerSemaine();
+        },
+        toutDecocher() {
+          this.filtresGroupes = [];
+          this.sauvegarderFiltres();
+          this.chargerCours();
+          this.chargerSemaine();
+        },
+        async analyserCategories() {
+          this.chargementCategories = true;
+          this.erreurCategories = '';
+          this.messageCategories = '';
+          try {
+            const res = await fetch(`${API_BASE}/config/categories`);
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
+            const data = await res.json();
+            this.categorisation = {
+              groupes: data.groupes || [],
+              types: data.types || [],
+              matieres: data.matieres || [],
+            };
+            if (!this.filtresGroupes.length && this.categorisation.groupes.length) {
+              this.filtresGroupes = [...this.categorisation.groupes];
+              this.sauvegarderFiltres();
+            }
+            this.messageCategories = `${this.categorisation.groupes.length} groupe(s), ${this.categorisation.types.length} type(s) et ${this.categorisation.matieres.length} matière(s) détectés dans ton flux ADE.`;
+            this.chargerCours();
+            this.chargerSemaine();
+          } catch (e) {
+            this.erreurCategories = e.message || 'Analyse impossible : vérifie ton lien ADE.';
+          } finally {
+            this.chargementCategories = false;
+          }
+        },
       },
 
       created() {
+        this.chargerFiltres();
         const aujourd = new Date();
         this.semaineDate = `${aujourd.getFullYear()}-${String(aujourd.getMonth() + 1).padStart(2, '0')}-${String(aujourd.getDate()).padStart(2, '0')}`;
         this.chargerCours();

@@ -1,12 +1,13 @@
 import json
 import os
+import re
 from datetime import date, datetime, time, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 import requests
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from ics import Calendar
 from pydantic import BaseModel
@@ -104,6 +105,7 @@ def parser_cours(contenu: str) -> list:
     for evenement in calendrier.events:
         try:
             titre = str(evenement.name or "Cours sans titre").strip()
+            description = str(evenement.description or "").strip()
             debut = evenement.begin.datetime
             fin = evenement.end.datetime
 
@@ -121,12 +123,16 @@ def parser_cours(contenu: str) -> list:
                 {
                     "titre": titre,
                     "salle": str(evenement.location or "").strip(),
-                    "enseignant": str(evenement.description or "").strip(),
+                    "enseignant": description,
                     "debut": debut.strftime("%H:%M"),
                     "fin": fin.strftime("%H:%M"),
                     "debut_iso": debut.isoformat(),
                     "fin_iso": fin.isoformat(),
                     "date": debut.date().isoformat(),
+                    # Analyse automatique (regex) pour le filtrage par groupe.
+                    "groupes": detecter_groupes(titre, description),
+                    "types": detecter_types(titre, description),
+                    "matiere": extraire_matiere(titre),
                 }
             )
         except Exception:
@@ -135,6 +141,84 @@ def parser_cours(contenu: str) -> list:
 
     cours.sort(key=lambda c: c["debut_iso"])
     return cours
+
+
+# ---------------------------------------------------------------------------
+#  Analyse automatique du flux ADE (regex) : groupes, types, matières
+# ---------------------------------------------------------------------------
+RE_GROUPES = [
+    re.compile(r"\b(?:TP|TD)[ ]*(\d+|[A-Z])\b", re.IGNORECASE),        # TP1, TP 1, TD2
+    re.compile(r"\bGr(?:oupe)?s?[ ]+(?:\d+|[A-Z])\b", re.IGNORECASE),  # Groupe 1, Gr A
+    re.compile(r"\bParcours[ ]+([A-Z0-9]+)\b", re.IGNORECASE),         # Parcours GEE
+    re.compile(r"\bPromo[ ]+([A-Z]+)\b", re.IGNORECASE),               # Promo DK / FISE
+    re.compile(r"\b(CP[12]|ING[12])\b", re.IGNORECASE),                # CP1, CP2, ING1, ING2
+]
+RE_TYPES = [
+    re.compile(r"\b(Kh[oô]lle)\b", re.IGNORECASE),
+    re.compile(r"\b(DS)\b"), re.compile(r"\b(CM)\b"), re.compile(r"\b(TD)\b"),
+    re.compile(r"\b(TP)\b"), re.compile(r"\b(IE)\b"), re.compile(r"\b(CC)\b"),
+    re.compile(r"\b(Examen|Exam)\b", re.IGNORECASE),
+    re.compile(r"\b(Contr[oô]le)\b", re.IGNORECASE),
+    re.compile(r"\b(Oral)\b", re.IGNORECASE),
+    re.compile(r"\b(PRESENTATION)\b", re.IGNORECASE),
+    re.compile(r"\b(REUNION)\b", re.IGNORECASE),
+    re.compile(r"\b(RENTREE)\b", re.IGNORECASE),
+    re.compile(r"\b(OLYMPIADES)\b", re.IGNORECASE),
+    re.compile(r"\b(TEDS)\b", re.IGNORECASE),
+    re.compile(r"\b(WEC)\b", re.IGNORECASE),
+]
+# Marqueurs retirés d'un titre de cours pour ne garder que la matière.
+RE_MARQUEURS_GROUPE = re.compile(
+    r"\((?:TP|TD|CM|DS)[^)]*\)|Gr(?:oupe)?s?[ ]+(?:\d+|[A-Z])|"
+    r"Parcours[ ]+[A-Z0-9]+|Promo[ ]+[A-Z]+|\b(?:CP[12]|ING[12])\b",
+    re.IGNORECASE,
+)
+RE_NUMERO_TRAILING = re.compile(r"\s+\d+(?:\.\d+)*\s*$")
+
+
+def extraire_matches(texte: str, regexes: list) -> list:
+    """Applique des regex et renvoie les captures normalisées, uniques et triées."""
+    resultats = []
+    for rx in regexes:
+        for m in rx.finditer(texte):
+            valeur = (m.group(1) if m.lastindex else m.group(0)).strip().upper()
+            if valeur and valeur not in resultats:
+                resultats.append(valeur)
+    return resultats
+
+
+def detecter_groupes(titre: str, description: str) -> list:
+    return extraire_matches(f"{titre} {description}", RE_GROUPES)
+
+
+def detecter_types(titre: str, description: str) -> list:
+    return extraire_matches(f"{titre} {description}", RE_TYPES)
+
+
+def extraire_matiere(titre: str) -> str:
+    """Nettoie un titre de cours pour en extraire la matière unique."""
+    s = re.sub(r"\([^)]*\)", " ", titre)      # (ALGEBRE) -> supprimé
+    s = s.split(" - ")[0]                      # "MECANIQUE DU SOLIDE - CINETIQUE" -> avant le tiret
+    s = RE_MARQUEURS_GROUPE.sub(" ", s)        # groupes / types retirés
+    s = RE_NUMERO_TRAILING.sub("", s)          # numéro de version en fin retiré
+    s = re.sub(r"\s+", " ", s).strip()
+    return s.upper()
+
+
+def appliquer_filtres(cours: list, groupes_actifs: list) -> list:
+    """Masque les séances à groupe (TP/TD/Khôlle) qui ne correspondent à aucun filtre actif.
+
+    Un cours sans groupe (CM, réunion…) reste toujours visible. Sans filtre, tout est affiché.
+    """
+    actifs = {g.strip().lower() for g in (groupes_actifs or []) if g and g.strip()}
+    if not actifs:
+        return cours
+    gardes = []
+    for c in cours:
+        groupes = {g.lower() for g in c.get("groupes", [])}
+        if not groupes or groupes & actifs:
+            gardes.append(c)
+    return gardes
 
 
 def charger_cours(db: Session = None) -> list:
@@ -179,13 +263,26 @@ def parser_date(valeur: Optional[str]) -> Optional[date]:
 
 
 @app.get("/api/cours-du-jour")
-def get_cours_du_jour(date: Optional[str] = None, db: Session = Depends(get_db)):
-    return charger_cours_du_jour(db, parser_date(date))
+def get_cours_du_jour(
+    date: Optional[str] = None,
+    groupes: Optional[list[str]] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    resultat = charger_cours_du_jour(db, parser_date(date))
+    resultat["cours"] = appliquer_filtres(resultat["cours"], groupes)
+    resultat["nb_cours"] = len(resultat["cours"])
+    return resultat
 
 
 @app.get("/api/cours-semaine")
-def get_cours_semaine(date: Optional[str] = None, db: Session = Depends(get_db)):
-    return charger_cours_semaine(db, parser_date(date))
+def get_cours_semaine(
+    date: Optional[str] = None,
+    groupes: Optional[list[str]] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    resultat = charger_cours_semaine(db, parser_date(date))
+    resultat["cours"] = appliquer_filtres(resultat["cours"], groupes)
+    return resultat
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +361,24 @@ def save_config(data: ConfigUpdate, db: Session = Depends(get_db)):
         config.gemini_key = data.gemini_key
     db.commit()
     return {"detail": "Configuration enregistrée"}
+
+
+@app.get("/api/config/categories")
+def analyser_categories(db: Session = Depends(get_db)):
+    """Télécharge le flux ADE et en extrait automatiquement les groupes, types et matières."""
+    tous = charger_cours(db)
+    groupes, types, matieres = [], [], []
+    for c in tous:
+        for g in c.get("groupes", []):
+            if g and g not in groupes:
+                groupes.append(g)
+        for t in c.get("types", []):
+            if t and t not in types:
+                types.append(t)
+        m = c.get("matiere", "")
+        if m and m not in matieres:
+            matieres.append(m)
+    return {"groupes": sorted(groupes), "types": sorted(types), "matieres": sorted(matieres)}
 
 
 # ---------------------------------------------------------------------------
@@ -357,9 +472,12 @@ def simuler_plan(cours: list, devoirs: list) -> dict:
 
 
 @app.post("/api/plan-revision")
-def generer_plan_revision(db: Session = Depends(get_db)):
+def generer_plan_revision(
+    groupes: Optional[list[str]] = Query(default=None),
+    db: Session = Depends(get_db),
+):
     """Génère un plan de révision du soir (Gemini si configuré, sinon simulation)."""
-    cours = charger_cours_du_jour(db)["cours"]
+    cours = appliquer_filtres(charger_cours_du_jour(db)["cours"], groupes)
     devoirs = db.query(Devoir).all()
     prompt = construire_prompt(cours, devoirs)
 

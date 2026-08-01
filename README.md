@@ -167,55 +167,7 @@ curl -X POST http://localhost:8000/api/plan-revision
 
 ---
 
-## Publication sur GitHub
 
-### 1. Initialiser le dépôt Git
-
-```bash
-cd tableau-de-bord-etudiant
-git init -b main
-```
-
-### 2. Vérifier ce qui sera publié
-
-```bash
-git status
-```
-
-Le fichier `.env` (avec tes secrets) et la base `tableau_bord.db` **ne doivent pas apparaître** : ils sont déjà exclus par le `.gitignore`.
-
-### 3. Premier commit
-
-```bash
-git add .
-git commit -m "Initial commit : dashboard étudiant FastAPI + Vue.js + Gemini"
-```
-
-### 4. Créer le dépôt distant
-
-**Option A — avec GitHub CLI (`gh`) :**
-
-```bash
-gh repo create tableau-de-bord-etudiant --public --source=. --push
-```
-
-**Option B — via l'interface GitHub :**
-1. Crée un dépôt vide sur <https://github.com/new> (sans fichier README pour éviter les conflits).
-2. Ajoute le remote puis pousse :
-
-```bash
-git remote add origin https://github.com/<TON_USER>/tableau-de-bord-etudiant.git
-git branch -M main
-git push -u origin main
-```
-
-### 5. Mises à jour suivantes
-
-```bash
-git add .
-git commit -m "Amélioration : ..."
-git push
-```
 
 ---
 

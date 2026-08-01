@@ -34,11 +34,13 @@ Dashboard personnel **Full-Stack** pour visualiser son emploi du temps en temps 
 ```
 Tablau_de_bord_projet/
 ├── backend/
-│   ├── main.py            # API FastAPI (routes + logique iCal + IA)
-│   ├── database.py        # Connexion SQLite + modèle Devoir (SQLModel)
+│   ├── main.py            # API FastAPI (routes + logique iCal + IA + frontend statique)
+│   ├── database.py        # Connexion SQLite + modèles (SQLAlchemy)
 │   └── requirements.txt   # Dépendances Python
 ├── frontend/
 │   └── index.html         # SPA Vue.js 3 + Tailwind (via CDN)
+├── Dockerfile             # Image : Python 3.11-slim + API + frontend
+├── docker-compose.yml     # Déploiement one-command avec persistance SQLite
 ├── .env.example           # Modèle des variables d'environnement
 ├── .gitignore             # Fichiers exclus de Git (secrets, DB, caches)
 └── README.md
@@ -48,7 +50,7 @@ Tablau_de_bord_projet/
 
 ```
 Frontend (Vue) ──fetch──▶ FastAPI ──┬─▶ ADE Campus (téléchargement .ics, parsing)
-                                    ├─▶ SQLite (devoirs, via SQLModel)
+                                    ├─▶ SQLite (devoirs, via SQLAlchemy)
                                     └─▶ Google Gemini (prompt → plan JSON)
 ```
 
@@ -62,6 +64,49 @@ Frontend (Vue) ──fetch──▶ FastAPI ──┬─▶ ADE Campus (téléch
 - Une **clé API Gemini** gratuite (voir ci-dessous)
 
 Aucun Node.js n'est requis : Vue.js et Tailwind sont chargés par CDN.
+
+---
+
+## 🚀 Déploiement Rapide avec Docker
+
+> **Méthode recommandée** : toute l'application (API FastAPI + frontend + base SQLite) est embarquée dans un seul conteneur, accessible sur un unique port.
+
+### Prérequis
+
+- **Docker** installé (version 24+) et **Docker Compose** (version 2.20+, inclus avec Docker Desktop ou installable comme plugin `docker compose`).
+- Une **URL iCal ADE** et une **clé API Gemini** *(facultatives au premier lancement : elles peuvent être saisies ensuite depuis l'onglet ⚙️ Configuration de l'application).*
+
+### Lancer l'application en une commande
+
+```bash
+docker compose up -d
+```
+
+Docker construit l'image, installe les dépendances, démarre le backend FastAPI **et** sert le frontend (servi par FastAPI lui-même) : aucune étape manuelle supplémentaire.
+
+### Accéder à l'application
+
+- **Application** : <http://localhost:8000>
+- **Documentation API** : <http://localhost:8000/docs>
+
+### Persistance des données
+
+La base SQLite `backend/app.db` est montée en volume : tes devoirs et ta configuration survivent aux redémarrages et à la recréation du conteneur.
+
+```yaml
+volumes:
+  - ./backend/app.db:/app/backend/app.db
+```
+
+### Gestion du conteneur
+
+```bash
+docker compose down            # arrête le conteneur (les données sont conservées)
+docker compose up -d --build   # reconstruit l'image après une modification du code
+docker compose logs -f app     # suit les logs du backend
+```
+
+> Les variables d'environnement du `.env` (ex. `GEMINI_API_KEY`, `ADE_ICS_URL`) peuvent être passées au conteneur via `environment:` dans `docker-compose.yml`, ou en créant un fichier `.env` à la racine du projet.
 
 ---
 
@@ -181,7 +226,6 @@ curl -X POST http://localhost:8000/api/plan-revision
 
 ## Améliorations possibles
 
-- Docker + `docker-compose` pour un déploiement one-command.
 - Authentification (JWT) et multi-utilisateurs.
 - Notifications (email / push) pour les échéances proches.
 - Historique des plans de révision et suivi de progression.

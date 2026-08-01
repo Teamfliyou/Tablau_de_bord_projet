@@ -1,8 +1,11 @@
+import os
+
 from sqlalchemy import Column, Integer, String, create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = "sqlite:///./app.db"
+# Surchargeable via l'environnement (ex. Docker) ; sinon base SQLite locale.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
 
 engine = create_engine(
     DATABASE_URL,

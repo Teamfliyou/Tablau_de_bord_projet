@@ -2,6 +2,7 @@ import json
 import os
 import re
 from datetime import date, datetime, time, timedelta
+from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -9,6 +10,7 @@ import requests
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from ics import Calendar
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -119,11 +121,14 @@ def parser_cours(contenu: str) -> list:
             debut = debut.astimezone(ZONE) if debut.tzinfo else debut.replace(tzinfo=ZONE)
             fin = fin.astimezone(ZONE) if fin.tzinfo else fin.replace(tzinfo=ZONE)
 
+            enseignants = extraire_enseignants(description)
+
             cours.append(
                 {
                     "titre": titre,
                     "salle": str(evenement.location or "").strip(),
-                    "enseignant": description,
+                    "enseignant": ", ".join(enseignants),
+                    "enseignants": enseignants,
                     "debut": debut.strftime("%H:%M"),
                     "fin": fin.strftime("%H:%M"),
                     "debut_iso": debut.isoformat(),
@@ -157,6 +162,10 @@ RE_TYPES = [
     re.compile(r"\b(Kh[oô]lle)\b", re.IGNORECASE),
     re.compile(r"\b(DS)\b"), re.compile(r"\b(CM)\b"), re.compile(r"\b(TD)\b"),
     re.compile(r"\b(TP)\b"), re.compile(r"\b(IE)\b"), re.compile(r"\b(CC)\b"),
+    re.compile(r"\b(TRAVAUX[ ]+PRATIQUES)\b", re.IGNORECASE),
+    re.compile(r"\b(TRAVAUX[ ]+DIRIGES)\b", re.IGNORECASE),
+    re.compile(r"\b(COURS[ ]+MAGISTRAL)\b", re.IGNORECASE),
+    re.compile(r"\b(PROJET|ATELIER|AMPHI)\b", re.IGNORECASE),
     re.compile(r"\b(Examen|Exam)\b", re.IGNORECASE),
     re.compile(r"\b(Contr[oô]le)\b", re.IGNORECASE),
     re.compile(r"\b(Oral)\b", re.IGNORECASE),
@@ -205,19 +214,60 @@ def extraire_matiere(titre: str) -> str:
     return s.upper()
 
 
-def appliquer_filtres(cours: list, groupes_actifs: list) -> list:
-    """Masque les séances à groupe (TP/TD/Khôlle) qui ne correspondent à aucun filtre actif.
+# Lignes de "groupe" typiques d'un export ADE (CP2 PROMO DK, ING1 GEE - PROMO…).
+RE_LIGNE_GROUPE = re.compile(
+    r"^(?:[A-Z]{2,3}\s*\d|ING\d|CP[12]|TD|TP|CM|PROMO|PARCOURS|FISE|GEE|GI|DK)\b",
+    re.IGNORECASE,
+)
+# Une ligne enseignant ressemble à "NOM Prénom" (nom en MAJUSCULES + prénom).
+RE_LIGNE_PROF = re.compile(
+    r"^[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'’\- ]{1,} +[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þa-zà-öø-ÿ'’\- ]+$"
+)
 
-    Un cours sans groupe (CM, réunion…) reste toujours visible. Sans filtre, tout est affiché.
+
+def extraire_enseignants(description: str) -> list:
+    """Extrait les noms des enseignants depuis la description d'un événement ADE.
+
+    Format ADE typique : des lignes de groupes (CP2 PROMO DK, ING1 GEE - PROMO…)
+    suivies d'une ligne "NOM Prénom" pour chaque enseignant, puis "(Exporté le:…)".
     """
-    actifs = {g.strip().lower() for g in (groupes_actifs or []) if g and g.strip()}
-    if not actifs:
-        return cours
+    enseignants = []
+    for ligne in description.splitlines():
+        ligne = ligne.strip()
+        if not ligne or ligne.startswith("("):
+            continue
+        if RE_LIGNE_GROUPE.match(ligne):
+            continue
+        if RE_LIGNE_PROF.match(ligne) and ligne not in enseignants:
+            enseignants.append(ligne)
+    return enseignants
+
+
+def appliquer_filtres(cours: list, groupes: list = None, types: list = None, matieres: list = None) -> list:
+    """Masque les séances qui ne correspondent à aucun filtre actif (groupes, types, matières).
+
+    Chaque dimension est indépendante : une séance qui possède une valeur pour cette dimension
+    (ex. un groupe TP) n'est gardée que si cette valeur est cochée. Une séance sans valeur pour
+    la dimension (ex. un CM sans groupe) reste visible. Sans filtre actif, tout est affiché.
+    """
+    grp_actifs = {g.strip().lower() for g in (groupes or []) if g and g.strip()}
+    typ_actifs = {t.strip().lower() for t in (types or []) if t and t.strip()}
+    mat_actifs = {m.strip().lower() for m in (matieres or []) if m and m.strip()}
     gardes = []
     for c in cours:
-        groupes = {g.lower() for g in c.get("groupes", [])}
-        if not groupes or groupes & actifs:
-            gardes.append(c)
+        if grp_actifs:
+            groupes_c = {g.lower() for g in c.get("groupes", [])}
+            if groupes_c and not (groupes_c & grp_actifs):
+                continue
+        if typ_actifs:
+            types_c = {t.lower() for t in c.get("types", [])}
+            if types_c and not (types_c & typ_actifs):
+                continue
+        if mat_actifs:
+            matiere_c = (c.get("matiere") or "").lower()
+            if matiere_c and matiere_c not in mat_actifs:
+                continue
+        gardes.append(c)
     return gardes
 
 
@@ -266,10 +316,12 @@ def parser_date(valeur: Optional[str]) -> Optional[date]:
 def get_cours_du_jour(
     date: Optional[str] = None,
     groupes: Optional[list[str]] = Query(default=None),
+    types: Optional[list[str]] = Query(default=None),
+    matieres: Optional[list[str]] = Query(default=None),
     db: Session = Depends(get_db),
 ):
     resultat = charger_cours_du_jour(db, parser_date(date))
-    resultat["cours"] = appliquer_filtres(resultat["cours"], groupes)
+    resultat["cours"] = appliquer_filtres(resultat["cours"], groupes, types, matieres)
     resultat["nb_cours"] = len(resultat["cours"])
     return resultat
 
@@ -278,10 +330,12 @@ def get_cours_du_jour(
 def get_cours_semaine(
     date: Optional[str] = None,
     groupes: Optional[list[str]] = Query(default=None),
+    types: Optional[list[str]] = Query(default=None),
+    matieres: Optional[list[str]] = Query(default=None),
     db: Session = Depends(get_db),
 ):
     resultat = charger_cours_semaine(db, parser_date(date))
-    resultat["cours"] = appliquer_filtres(resultat["cours"], groupes)
+    resultat["cours"] = appliquer_filtres(resultat["cours"], groupes, types, matieres)
     return resultat
 
 
@@ -384,11 +438,18 @@ def analyser_categories(db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 #  Plan de révision IA (Gemini ou simulation)
 # ---------------------------------------------------------------------------
+def _decrire_cours(c: dict) -> str:
+    """Résume un cours pour le prompt IA (titre, horaire, salle, professeur)."""
+    infos = f"{c['titre']} ({c['debut']} -> {c['fin']}"
+    if c.get("salle"):
+        infos += f", salle {c['salle']}"
+    if c.get("enseignant"):
+        infos += f", professeur : {c['enseignant']}"
+    return infos + ")"
+
+
 def construire_prompt(cours: list, devoirs: list) -> str:
-    cours_txt = "\n".join(
-        f"- {c['titre']} ({c['debut']} -> {c['fin']}, salle {c.get('salle') or 'non renseignée'})"
-        for c in cours
-    ) or "- Aucun cours aujourd'hui."
+    cours_txt = "\n".join(f"- {_decrire_cours(c)}" for c in cours) or "- Aucun cours aujourd'hui."
 
     devoirs_txt = "\n".join(
         f"- {d.titre} | matière : {d.matiere or 'non précisée'} | type : {d.type} | "
@@ -474,10 +535,12 @@ def simuler_plan(cours: list, devoirs: list) -> dict:
 @app.post("/api/plan-revision")
 def generer_plan_revision(
     groupes: Optional[list[str]] = Query(default=None),
+    types: Optional[list[str]] = Query(default=None),
+    matieres: Optional[list[str]] = Query(default=None),
     db: Session = Depends(get_db),
 ):
     """Génère un plan de révision du soir (Gemini si configuré, sinon simulation)."""
-    cours = appliquer_filtres(charger_cours_du_jour(db)["cours"], groupes)
+    cours = appliquer_filtres(charger_cours_du_jour(db)["cours"], groupes, types, matieres)
     devoirs = db.query(Devoir).all()
     prompt = construire_prompt(cours, devoirs)
 
@@ -503,3 +566,13 @@ def generer_plan_revision(
             return simuler_plan(cours, devoirs)
 
     return simuler_plan(cours, devoirs)
+
+
+# ---------------------------------------------------------------------------
+#  Frontend statique (servi par FastAPI si le dossier existe)
+#  => Permet un accès unique à l'app sur http://localhost:8000 (dont Docker).
+#  Les routes /api/* déclarées ci-dessus restent prioritaires.
+# ---------------------------------------------------------------------------
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+if _FRONTEND_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")

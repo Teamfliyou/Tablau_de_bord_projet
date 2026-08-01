@@ -1,0 +1,15 @@
+# ============================================================
+#  Tableau de bord étudiant — Docker Compose
+#  Démarre l'API FastAPI + le frontend (servi par FastAPI)
+#  sur le port 8000, avec persistance de la base SQLite.
+# ============================================================
+
+services:
+  app:
+    build: .
+    container_name: tableau-de-bord
+    ports:
+      - "8000:8000"        # Application + API : http://localhost:8000
+    volumes:
+      - ./backend/app.db:/app/backend/app.db   # Persistance SQLite
+    restart: unless-stopped

@@ -17,7 +17,9 @@
     tailwind.config = {
       theme: {
         extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Inter', 'system-ui', 'sans-serif'],
+          },
         },
       },
     };
@@ -29,17 +31,32 @@
   <style>
     html { scroll-behavior: smooth; }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 8px; }
     ::-webkit-scrollbar-track { background: transparent; }
+
+    /* Dock : halo lumineux de l'onglet actif */
+    .dock-active {
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25), 0 10px 30px -6px rgba(124, 58, 237, 0.55), 0 0 22px rgba(139, 92, 246, 0.45);
+    }
   </style>
 </head>
 
-<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+<body class="bg-gradient-to-br from-indigo-100 via-violet-100 to-rose-100 text-slate-800 antialiased min-h-screen">
 
-  <div id="app" class="min-h-screen flex flex-col lg:flex-row">
+  <!-- ==================== DÉCOR LIQUID GLASS (fond pastel) ==================== -->
+  <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden="true">
+    <div class="absolute -top-40 -left-40 w-[32rem] h-[32rem] rounded-full bg-indigo-300/50 blur-3xl"></div>
+    <div class="absolute top-1/4 -right-40 w-[36rem] h-[36rem] rounded-full bg-fuchsia-300/50 blur-3xl"></div>
+    <div class="absolute -bottom-44 left-1/3 w-[30rem] h-[30rem] rounded-full bg-sky-300/50 blur-3xl"></div>
+    <div class="absolute top-1/2 -left-20 w-72 h-72 rounded-full bg-amber-200/40 blur-3xl"></div>
+  </div>
 
-    <!-- ==================== SIDEBAR (desktop) ==================== -->
-    <aside class="hidden lg:flex fixed inset-y-0 left-0 w-64 flex-col bg-white border-r border-slate-100 px-4 py-8">
+  <div id="app" class="min-h-screen">
+
+    <!-- ==================== SIDEBAR CLASSIQUE (option "Classic Sidebar") ==================== -->
+    <aside
+      v-if="interfaceStyle === 'classic'"
+      class="hidden lg:flex fixed inset-y-0 left-0 w-64 flex-col bg-white/60 backdrop-blur-2xl border-r border-white/40 px-4 py-8">
       <div class="flex items-center gap-3 px-2">
         <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
           <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -59,41 +76,63 @@
           :key="onglet.id"
           @click="ongletActif = onglet.id"
           class="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition"
-          :class="ongletActif === onglet.id ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'">
+          :class="ongletActif === onglet.id ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/30' : 'text-slate-500 hover:bg-white/60 hover:text-slate-800'">
           <app-icon :name="onglet.icone" class="w-5 h-5 shrink-0"></app-icon>
           {{ onglet.label }}
         </button>
       </nav>
 
-      <div class="pt-4 border-t border-slate-100 px-2">
+      <div class="pt-4 border-t border-white/40 px-2">
         <p class="text-xs text-slate-400">{{ dateDuJour }}</p>
       </div>
     </aside>
 
-    <!-- ==================== BARRE MOBILE ==================== -->
-    <div class="lg:hidden sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-100 px-3 py-2 flex gap-1.5 overflow-x-auto">
+    <!-- ==================== BARRE MOBILE (option "Classic Sidebar") ==================== -->
+    <div
+      v-if="interfaceStyle === 'classic'"
+      class="lg:hidden sticky top-0 z-30 bg-white/60 backdrop-blur-xl border-b border-white/40 px-3 py-2 flex gap-1.5 overflow-x-auto">
       <button
         v-for="onglet in onglets"
         :key="onglet.id"
         @click="ongletActif = onglet.id"
         class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition"
-        :class="ongletActif === onglet.id ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'">
+        :class="ongletActif === onglet.id ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm' : 'bg-white/60 text-slate-600'">
         <app-icon :name="onglet.icone" class="w-5 h-5 shrink-0"></app-icon>
         <span>{{ onglet.label }}</span>
       </button>
     </div>
 
+    <!-- ==================== DOCK DE NAVIGATION (bas d'écran, style iOS/macOS - par défaut) ==================== -->
+    <nav v-if="interfaceStyle === 'dock'" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 sm:gap-1 p-1 sm:p-1.5 rounded-full bg-white/30 backdrop-blur-xl border border-white/20 shadow-2xl shadow-indigo-900/10">
+      <button
+        v-for="onglet in onglets"
+        :key="onglet.id"
+        :title="onglet.label"
+        @click="ongletActif = onglet.id"
+        class="relative flex flex-col items-center justify-center gap-1 px-2 sm:px-4 py-2 sm:py-2.5 rounded-full transition-all duration-300"
+        :class="ongletActif === onglet.id ? 'text-white' : 'text-slate-500 hover:text-slate-800'">
+        <span
+          v-if="ongletActif === onglet.id"
+          class="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 dock-active"
+          aria-hidden="true"></span>
+        <app-icon :name="onglet.icone" class="relative w-6 h-6 shrink-0"></app-icon>
+        <span class="relative text-[9px] sm:text-[10px] font-semibold leading-none whitespace-nowrap">{{ onglet.label }}</span>
+      </button>
+    </nav>
+
     <!-- ==================== CONTENU ==================== -->
-    <main class="flex-1 lg:ml-64">
+    <main
+      class="flex-1 px-4 sm:px-6 lg:px-10 pt-10 sm:pt-14"
+      :class="interfaceStyle === 'classic' ? 'lg:ml-64 pb-16' : 'pb-28'">
 
       <!-- ============ ONGLET : DASHBOARD ============ -->
-      <section v-if="ongletActif === 'dashboard'" class="max-w-6xl mx-auto px-4 py-8">
+      <section v-if="ongletActif === 'dashboard'" class="max-w-7xl mx-auto">
         <header class="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 class="text-2xl font-bold text-slate-900">Dashboard</h2>
             <p class="text-sm text-slate-500">{{ dateDuJour }}</p>
           </div>
-          <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm text-sm text-slate-600">
+          <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/60 backdrop-blur-xl border border-white/40 shadow-sm text-sm text-slate-600">
             <span class="relative flex h-2 w-2">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -104,19 +143,19 @@
 
         <!-- Statistiques -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <div class="bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-lg shadow-indigo-500/5 p-5">
             <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Cours aujourd'hui</p>
             <p class="text-2xl font-bold text-slate-900 mt-1">{{ cours.length }}</p>
           </div>
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <div class="bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-lg shadow-indigo-500/5 p-5">
             <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">À faire</p>
             <p class="text-2xl font-bold text-rose-600 mt-1">{{ nbStatut('a_faire') }}</p>
           </div>
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <div class="bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-lg shadow-indigo-500/5 p-5">
             <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">En cours</p>
             <p class="text-2xl font-bold text-amber-500 mt-1">{{ nbStatut('en_cours') }}</p>
           </div>
-          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          <div class="bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-lg shadow-indigo-500/5 p-5">
             <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">Terminés</p>
             <p class="text-2xl font-bold text-emerald-600 mt-1">{{ nbStatut('termine') }}</p>
           </div>
@@ -126,7 +165,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6">
 
           <!-- Carte : Emploi du temps du jour -->
-          <section class="lg:col-span-3 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <section class="lg:col-span-3 bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-lg shadow-indigo-500/5 p-6">
             <div class="flex items-center justify-between gap-3 flex-wrap">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
@@ -168,25 +207,34 @@
                     <span v-if="estEnCours(c)" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white bg-emerald-500 animate-pulse">EN COURS</span>
                     <h3 class="font-semibold text-slate-800">{{ c.titre }}</h3>
                   </div>
-                  <p class="text-sm text-slate-500 mt-1 flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    {{ c.salle || 'Salle non renseignée' }}
-                  </p>
+                  <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <p class="text-sm text-slate-500 flex items-center gap-1.5">
+                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {{ c.salle || 'Salle non renseignée' }}
+                    </p>
+                    <p v-if="c.enseignant" class="text-sm text-slate-500 flex items-center gap-1.5">
+                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                      {{ c.enseignant }}
+                    </p>
+                  </div>
                 </div>
               </li>
             </ul>
 
-            <div v-else class="mt-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 p-10 text-center">
+            <div v-else class="mt-6 rounded-2xl bg-white/40 backdrop-blur-xl border border-dashed border-white/60 p-10 text-center">
               <p class="font-medium text-slate-600">Aucun cours prévu aujourd'hui</p>
               <p class="text-sm text-slate-400 mt-1">Profites-en pour avancer sur tes devoirs ou préparer tes révisions.</p>
             </div>
           </section>
 
           <!-- Carte : Devoirs rapides -->
-          <section class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <section class="lg:col-span-2 bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-lg shadow-indigo-500/5 p-6">
             <div class="flex items-center justify-between gap-3">
               <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
@@ -208,7 +256,7 @@
                 required
                 type="text"
                 placeholder="Nouveau devoir…"
-                class="flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                class="flex-1 rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
               <button
                 type="submit"
                 class="inline-flex items-center justify-center w-11 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition">
@@ -249,14 +297,14 @@
               </li>
             </ul>
 
-            <div v-else class="mt-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 p-8 text-center">
+            <div v-else class="mt-6 rounded-2xl bg-white/40 backdrop-blur-xl border border-dashed border-white/60 p-8 text-center">
               <p class="font-medium text-slate-600">Aucun devoir pour l'instant</p>
               <p class="text-sm text-slate-400 mt-1">Ajoute ton premier devoir avec le formulaire ci-dessus.</p>
             </div>
           </section>
 
           <!-- Carte : Plan de révision IA -->
-          <section class="lg:col-span-5 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 rounded-2xl shadow-xl border border-indigo-500/20 p-6 md:p-8">
+          <section class="lg:col-span-5 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 rounded-3xl shadow-xl shadow-indigo-900/30 border border-indigo-500/20 p-6 md:p-8">
             <div class="flex items-start justify-between gap-4 flex-wrap">
               <div class="flex items-center gap-4">
                 <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/40">
@@ -338,7 +386,7 @@
       </section>
 
       <!-- ============ ONGLET : SEMAINE ============ -->
-      <section v-else-if="ongletActif === 'semaine'" class="max-w-6xl mx-auto px-4 py-8">
+      <section v-else-if="ongletActif === 'semaine'" class="max-w-7xl mx-auto">
         <header class="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 class="text-2xl font-bold text-slate-900">Emploi du temps de la semaine</h2>
@@ -349,7 +397,7 @@
             <button
               @click="changerSemaine(-7)"
               title="Semaine précédente"
-              class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition">
+              class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white/60 backdrop-blur-xl border border-white/40 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
@@ -358,11 +406,11 @@
               v-model="semaineDate"
               type="date"
               @change="chargerSemaine()"
-              class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              class="rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3 py-2 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             <button
               @click="changerSemaine(7)"
               title="Semaine suivante"
-              class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition">
+              class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white/60 backdrop-blur-xl border border-white/40 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
               </svg>
@@ -382,15 +430,15 @@
         <p v-if="erreurSemaine" class="mt-6 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-4">{{ erreurSemaine }}</p>
 
         <div v-else-if="chargementSemaine" class="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div v-for="i in 5" :key="i" class="rounded-2xl border border-slate-100 bg-white shadow-sm p-4 h-64 animate-pulse"></div>
+          <div v-for="i in 5" :key="i" class="rounded-3xl border border-white/40 bg-white/60 backdrop-blur-2xl shadow-lg shadow-indigo-500/5 p-5 h-64 animate-pulse"></div>
         </div>
 
         <div v-else-if="joursSemaine.length" class="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div
             v-for="jour in joursSemaine"
             :key="jour.date"
-            class="rounded-2xl border p-4 bg-white shadow-sm flex flex-col"
-            :class="jour.estAujourdhui ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-slate-100'">
+            class="rounded-3xl border p-5 bg-white/60 backdrop-blur-2xl shadow-lg shadow-indigo-500/5 flex flex-col"
+            :class="jour.estAujourdhui ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-white/40'">
             <div class="flex items-center justify-between gap-2">
               <h3 class="font-semibold text-slate-900">{{ jour.libelle }}</h3>
               <span v-if="jour.estAujourdhui" class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white bg-indigo-600">AUJOURD'HUI</span>
@@ -403,22 +451,37 @@
                 :class="jour.estAujourdhui ? 'border-indigo-100 bg-indigo-50/60' : 'border-slate-100 bg-slate-50/60'">
                 <p class="text-xs font-semibold text-indigo-600 tabular-nums">{{ c.debut }} – {{ c.fin }}</p>
                 <p class="font-medium text-slate-800 text-sm mt-1 leading-snug">{{ c.titre }}</p>
-                <p class="text-xs text-slate-500 mt-0.5">{{ c.salle || 'Salle non renseignée' }}</p>
+                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-500">
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {{ c.salle || 'Salle non renseignée' }}
+                  </span>
+                  <span v-if="c.enseignant" class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    {{ c.enseignant }}
+                  </span>
+                </div>
               </div>
             </div>
-            <div v-if="!jour.cours.length" class="mt-3 rounded-xl border border-dashed border-slate-200 p-4 text-center flex-1 flex items-center justify-center">
+            <div v-if="!jour.cours.length" class="mt-3 rounded-xl border border-dashed border-white/60 p-4 text-center flex-1 flex items-center justify-center">
               <p class="text-xs text-slate-400">Pas de cours</p>
             </div>
           </div>
         </div>
 
-        <div v-else class="mt-6 rounded-xl bg-white border border-dashed border-slate-200 p-10 text-center">
+        <div v-else class="mt-6 rounded-2xl bg-white/40 backdrop-blur-xl border border-dashed border-white/60 p-10 text-center">
           <p class="font-medium text-slate-600">Aucune donnée pour cette semaine</p>
         </div>
       </section>
 
       <!-- ============ ONGLET : DEVOIRS (KANBAN) ============ -->
-      <section v-else-if="ongletActif === 'devoirs'" class="max-w-6xl mx-auto px-4 py-8">
+      <section v-else-if="ongletActif === 'devoirs'" class="max-w-7xl mx-auto">
         <header class="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 class="text-2xl font-bold text-slate-900">Devoirs</h2>
@@ -427,7 +490,7 @@
         </header>
 
         <!-- Formulaire d'ajout -->
-        <form @submit.prevent="ajouterDevoir" class="mt-6 bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
+        <form @submit.prevent="ajouterDevoir" class="mt-6 bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-lg shadow-indigo-500/5 p-5 space-y-4">
           <div class="flex flex-wrap items-center gap-2">
             <span class="text-sm font-medium text-slate-500 mr-1">Type :</span>
             <button
@@ -436,7 +499,7 @@
               type="button"
               @click="nouveauDevoir.type = t.id"
               class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium border transition"
-              :class="nouveauDevoir.type === t.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'">
+              :class="nouveauDevoir.type === t.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white/60 backdrop-blur text-slate-600 border-white/50 hover:border-indigo-300'">
               <app-icon :name="t.icone" class="w-4 h-4 shrink-0"></app-icon> {{ t.label }}
             </button>
           </div>
@@ -446,19 +509,19 @@
               required
               type="text"
               placeholder="Intitulé…"
-              class="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              class="rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             <input
               v-model="nouveauDevoir.matiere"
               type="text"
               placeholder="Matière"
-              class="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              class="rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             <input
               v-model="nouveauDevoir.echeance"
               type="date"
-              class="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              class="rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             <select
               v-model="nouveauDevoir.statut"
-              class="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              class="rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
               <option value="a_faire">À faire</option>
               <option value="en_cours">En cours</option>
               <option value="termine">Terminé</option>
@@ -481,7 +544,7 @@
           <div
             v-for="colonne in colonnes"
             :key="colonne.id"
-            class="rounded-2xl border border-slate-100 bg-white shadow-sm p-4 flex flex-col">
+            class="rounded-3xl border border-white/40 bg-white/60 backdrop-blur-2xl shadow-lg shadow-indigo-500/5 p-4 flex flex-col">
             <div class="flex items-center justify-between px-1">
               <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold" :class="colonne.badge">
                 <app-icon :name="colonne.icone" class="w-4 h-4"></app-icon> {{ colonne.label }}
@@ -524,7 +587,7 @@
                     @click="deplacer(d, -1)"
                     :disabled="d.statut === 'a_faire'"
                     title="Revenir en arrière"
-                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/60 backdrop-blur border border-white/50 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-30 disabled:cursor-not-allowed transition">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                     </svg>
@@ -534,7 +597,7 @@
                     @click="deplacer(d, 1)"
                     :disabled="d.statut === 'termine'"
                     title="Faire avancer"
-                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white/60 backdrop-blur border border-white/50 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-30 disabled:cursor-not-allowed transition">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
@@ -542,7 +605,7 @@
                 </div>
               </div>
 
-              <div v-if="!devoirsParStatut(colonne.id).length" class="rounded-xl border border-dashed border-slate-200 p-6 text-center">
+              <div v-if="!devoirsParStatut(colonne.id).length" class="rounded-xl border border-dashed border-white/60 p-6 text-center">
                 <p class="text-xs text-slate-400">Aucun devoir</p>
               </div>
             </div>
@@ -551,20 +614,20 @@
       </section>
 
       <!-- ============ ONGLET : CONFIGURATION ============ -->
-      <section v-else-if="ongletActif === 'config'" class="max-w-3xl mx-auto px-4 py-8">
+      <section v-else-if="ongletActif === 'config'" class="max-w-7xl mx-auto">
         <header>
           <h2 class="text-2xl font-bold text-slate-900">Configuration</h2>
           <p class="text-sm text-slate-500">Paramètres du compte, de l'emploi du temps ADE et de l'IA.</p>
         </header>
 
-        <form @submit.prevent="enregistrerConfig" class="mt-8 bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
+        <form @submit.prevent="enregistrerConfig" class="mt-8 bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-lg shadow-indigo-500/5 p-6 space-y-5">
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1.5">Pseudo / Identifiant</label>
             <input
               v-model="config.username"
               type="text"
               placeholder="Ton pseudo GitHub ou ton nom"
-              class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              class="w-full rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
           </div>
 
           <div>
@@ -573,7 +636,7 @@
               v-model="config.ade_url"
               type="url"
               placeholder="https://ton-ecole.example.com/ade/ics?data=…"
-              class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              class="w-full rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             <p class="text-xs text-slate-400 mt-1.5">Trouvé dans ton application ADE : Emploi du temps → Export / iCal.</p>
           </div>
 
@@ -584,7 +647,7 @@
               type="password"
               placeholder="AIza…"
               autocomplete="off"
-              class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              class="w-full rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
             <p class="text-xs text-slate-400 mt-1.5">Gratuite sur <span class="font-medium">https://aistudio.google.com/apikey</span> — stockée uniquement en base locale.</p>
           </div>
 
@@ -603,8 +666,35 @@
           </button>
         </form>
 
+        <!-- ============ APPAREINCE & INTERFACE ============ -->
+        <section class="mt-8 bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-lg shadow-indigo-500/5 p-6">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+              <svg class="w-5 h-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 12h18M3 6h18M3 18h18M6 3v18M12 3v18M18 3v18" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="font-semibold text-slate-900">🎨 Apparence & Interface</h3>
+              <p class="text-xs text-slate-400">Choisis le style de navigation principal de ton tableau de bord.</p>
+            </div>
+          </div>
+
+          <div class="mt-5">
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Style de navigation</label>
+            <select
+              v-model="interfaceStyle"
+              @change="sauvegarderInterface"
+              class="w-full rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="dock">Modern Dock (Bandeau en bas)</option>
+              <option value="classic">Classic Sidebar (Barre latérale)</option>
+            </select>
+            <p class="text-xs text-slate-400 mt-1.5">Le choix est enregistré automatiquement et appliqué immédiatement.</p>
+          </div>
+        </section>
+
         <!-- ============ FILTRES & PERSONNALISATION ============ -->
-        <section class="mt-8 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <section class="mt-8 bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-lg shadow-indigo-500/5 p-6">
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
@@ -612,7 +702,7 @@
               </div>
               <div>
                 <h3 class="font-semibold text-slate-900">Filtres & Personnalisation</h3>
-                <p class="text-xs text-slate-400">Analyse automatique de ton flux ADE : coche uniquement tes groupes (TP/TD/Khôlles).</p>
+                <p class="text-xs text-slate-400">Analyse automatique de ton flux ADE : coche tes groupes (TP/TD/Khôlles), tes épreuves et tes matières.</p>
               </div>
             </div>
             <button
@@ -638,11 +728,11 @@
                 <div class="flex items-center gap-2 text-xs">
                   <button
                     type="button"
-                    @click="toutCocher"
+                    @click="toutCocher('groupes')"
                     class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Tout cocher</button>
                   <button
                     type="button"
-                    @click="toutDecocher"
+                    @click="toutDecocher('groupes')"
                     class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Tout décocher</button>
                   <span class="text-slate-400 tabular-nums">{{ filtresGroupes.length }}/{{ categorisation.groupes.length }} actifs</span>
                 </div>
@@ -652,10 +742,10 @@
                   v-for="g in categorisation.groupes"
                   :key="g"
                   type="button"
-                  @click="basculerGroupe(g)"
+                  @click="basculer('groupes', g)"
                   class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium border transition"
-                  :class="estGroupeCoche(g) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'">
-                  <app-icon v-if="estGroupeCoche(g)" name="check" class="w-3.5 h-3.5"></app-icon>
+                  :class="estCoche('groupes', g) ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white/60 backdrop-blur text-slate-600 border-white/50 hover:border-indigo-300'">
+                  <app-icon v-if="estCoche('groupes', g)" name="check" class="w-3.5 h-3.5"></app-icon>
                   {{ g }}
                 </button>
               </div>
@@ -664,35 +754,75 @@
 
             <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-5 border-t border-slate-100 pt-5">
               <div>
-                <h4 class="font-semibold text-slate-800 text-sm mb-2">Types d'épreuves trouvés</h4>
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+                  <h4 class="font-semibold text-slate-800 text-sm">Types d'épreuves</h4>
+                  <div class="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      @click="toutCocher('types')"
+                      class="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Tout</button>
+                    <button
+                      type="button"
+                      @click="toutDecocher('types')"
+                      class="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Aucun</button>
+                    <span class="text-slate-400 tabular-nums">{{ filtresTypes.length }}/{{ categorisation.types.length }}</span>
+                  </div>
+                </div>
                 <div class="flex flex-wrap gap-1.5">
-                  <span
+                  <button
                     v-for="t in categorisation.types"
                     :key="t"
-                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs bg-sky-50 text-sky-700 border border-sky-100">{{ t }}</span>
+                    type="button"
+                    @click="basculer('types', t)"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition"
+                    :class="estCoche('types', t) ? 'bg-sky-600 text-white border-sky-600' : 'bg-sky-50 text-sky-700 border-sky-100 hover:border-sky-300'">
+                    <app-icon v-if="estCoche('types', t)" name="check" class="w-3 h-3"></app-icon>
+                    {{ t }}
+                  </button>
                   <span v-if="!categorisation.types.length" class="text-xs text-slate-400">Aucun type spécifique détecté.</span>
                 </div>
+                <p class="text-xs text-slate-400 mt-2">Coche les épreuves à garder (TP, TD, DS…). Les séances d'un type non coché sont masquées.</p>
               </div>
               <div>
-                <h4 class="font-semibold text-slate-800 text-sm mb-2">Matières uniques</h4>
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+                  <h4 class="font-semibold text-slate-800 text-sm">Matières</h4>
+                  <div class="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      @click="toutCocher('matieres')"
+                      class="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Tout</button>
+                    <button
+                      type="button"
+                      @click="toutDecocher('matieres')"
+                      class="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition">Aucun</button>
+                    <span class="text-slate-400 tabular-nums">{{ filtresMatieres.length }}/{{ categorisation.matieres.length }}</span>
+                  </div>
+                </div>
                 <div class="flex flex-wrap gap-1.5">
-                  <span
+                  <button
                     v-for="m in categorisation.matieres"
                     :key="m"
-                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs bg-violet-50 text-violet-700 border border-violet-100">{{ m }}</span>
+                    type="button"
+                    @click="basculer('matieres', m)"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition"
+                    :class="estCoche('matieres', m) ? 'bg-violet-600 text-white border-violet-600' : 'bg-violet-50 text-violet-700 border-violet-100 hover:border-violet-300'">
+                    <app-icon v-if="estCoche('matieres', m)" name="check" class="w-3 h-3"></app-icon>
+                    {{ m }}
+                  </button>
                   <span v-if="!categorisation.matieres.length" class="text-xs text-slate-400">Aucune matière détectée.</span>
                 </div>
+                <p class="text-xs text-slate-400 mt-2">Coche les matières à garder. Les cours des matières non cochées sont masqués.</p>
               </div>
             </div>
           </template>
 
-          <div v-else-if="!chargementCategories" class="mt-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 p-8 text-center">
+          <div v-else-if="!chargementCategories" class="mt-6 rounded-2xl bg-white/40 backdrop-blur-xl border border-dashed border-white/60 p-8 text-center">
             <p class="text-sm text-slate-500">Clique sur « Analyser mon lien ADE » pour détecter automatiquement tes groupes (TP/TD/Khôlles), les types d'épreuves et les matières.</p>
           </div>
         </section>
       </section>
 
-      <footer class="max-w-6xl mx-auto px-4 pb-10">
+      <footer class="max-w-7xl mx-auto mt-14">
         <p class="text-xs text-slate-400 text-center">Emploi du temps ADE · Devoirs (SQLite) · Génération IA à la demande · Projet personnel</p>
       </footer>
     </main>
@@ -724,10 +854,11 @@
       data() {
         return {
           ongletActif: 'dashboard',
+          interfaceStyle: 'dock',
           onglets: [
             { id: 'dashboard', label: 'Dashboard', icone: 'dashboard' },
-            { id: 'semaine', label: 'Emploi du Temps', icone: 'calendar' },
-            { id: 'devoirs', label: 'Devoirs', icone: 'list' },
+            { id: 'semaine', label: 'Semaine', icone: 'calendar' },
+            { id: 'devoirs', label: 'Kanban', icone: 'list' },
             { id: 'config', label: 'Configuration', icone: 'gear' },
           ],
           colonnes: [
@@ -774,6 +905,8 @@
           erreurCategories: '',
           messageCategories: '',
           filtresGroupes: [],
+          filtresTypes: [],
+          filtresMatieres: [],
         };
       },
 
@@ -815,6 +948,8 @@
         filtresQuery() {
           const params = new URLSearchParams();
           this.filtresGroupes.forEach((g) => params.append('groupes', g));
+          this.filtresTypes.forEach((t) => params.append('types', t));
+          this.filtresMatieres.forEach((m) => params.append('matieres', m));
           const qs = params.toString();
           return qs ? `?${qs}` : '';
         },
@@ -836,9 +971,8 @@
           this.chargementSemaine = true;
           this.erreurSemaine = null;
           try {
-            const params = new URLSearchParams();
-            if (this.semaineDate) params.append('date', this.semaineDate);
-            this.filtresGroupes.forEach((g) => params.append('groupes', g));
+            const params = new URLSearchParams(this.filtresQuery().replace(/^\?/, ''));
+            if (this.semaineDate) params.set('date', this.semaineDate);
             const qs = params.toString();
             const res = await fetch(`${API_BASE}/cours-semaine${qs ? `?${qs}` : ''}`);
             if (!res.ok) throw new Error();
@@ -1073,6 +1207,19 @@
           }
         },
 
+        // ---- Interface (Dock / Sidebar) ----
+        chargerInterface() {
+          try {
+            const style = localStorage.getItem('dashboard_interface');
+            if (style === 'dock' || style === 'classic') this.interfaceStyle = style;
+          } catch (_) { /* stockage indisponible */ }
+        },
+        sauvegarderInterface() {
+          try {
+            localStorage.setItem('dashboard_interface', this.interfaceStyle);
+          } catch (_) { /* stockage indisponible */ }
+        },
+
         // ---- Horloge ----
         majHeure() {
           this.heureActuelle = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -1081,36 +1228,57 @@
         // ---- Filtres & personnalisation ----
         chargerFiltres() {
           try {
-            const sauvegardes = JSON.parse(localStorage.getItem('dashboard_filtres_groupes') || '[]');
-            this.filtresGroupes = Array.isArray(sauvegardes) ? sauvegardes.filter(Boolean) : [];
+            const sauvegardes = JSON.parse(localStorage.getItem('dashboard_filtres') || 'null');
+            if (sauvegardes && Array.isArray(sauvegardes.groupes)) {
+              this.filtresGroupes = sauvegardes.groupes.filter(Boolean);
+              this.filtresTypes = Array.isArray(sauvegardes.types) ? sauvegardes.types.filter(Boolean) : [];
+              this.filtresMatieres = Array.isArray(sauvegardes.matieres) ? sauvegardes.matieres.filter(Boolean) : [];
+              return;
+            }
+          } catch (_) { /* ancienne clé ou stockage indisponible */ }
+          try {
+            const anciens = JSON.parse(localStorage.getItem('dashboard_filtres_groupes') || '[]');
+            this.filtresGroupes = Array.isArray(anciens) ? anciens.filter(Boolean) : [];
           } catch (_) {
             this.filtresGroupes = [];
           }
+          this.filtresTypes = [];
+          this.filtresMatieres = [];
         },
         sauvegarderFiltres() {
           try {
-            localStorage.setItem('dashboard_filtres_groupes', JSON.stringify(this.filtresGroupes));
+            localStorage.setItem('dashboard_filtres', JSON.stringify({
+              groupes: this.filtresGroupes,
+              types: this.filtresTypes,
+              matieres: this.filtresMatieres,
+            }));
           } catch (_) { /* stockage indisponible */ }
         },
-        estGroupeCoche(g) {
-          return this.filtresGroupes.includes(g);
+        dimProp(dim) {
+          if (dim === 'groupes') return 'filtresGroupes';
+          if (dim === 'types') return 'filtresTypes';
+          return 'filtresMatieres';
         },
-        basculerGroupe(g) {
-          const i = this.filtresGroupes.indexOf(g);
-          if (i === -1) this.filtresGroupes.push(g);
-          else this.filtresGroupes.splice(i, 1);
+        estCoche(dim, val) {
+          return this[this.dimProp(dim)].includes(val);
+        },
+        basculer(dim, val) {
+          const prop = this.dimProp(dim);
+          const i = this[prop].indexOf(val);
+          if (i === -1) this[prop].push(val);
+          else this[prop].splice(i, 1);
           this.sauvegarderFiltres();
           this.chargerCours();
           this.chargerSemaine();
         },
-        toutCocher() {
-          this.filtresGroupes = [...this.categorisation.groupes];
+        toutCocher(dim) {
+          this[this.dimProp(dim)] = [...this.categorisation[dim]];
           this.sauvegarderFiltres();
           this.chargerCours();
           this.chargerSemaine();
         },
-        toutDecocher() {
-          this.filtresGroupes = [];
+        toutDecocher(dim) {
+          this[this.dimProp(dim)] = [];
           this.sauvegarderFiltres();
           this.chargerCours();
           this.chargerSemaine();
@@ -1130,8 +1298,14 @@
             };
             if (!this.filtresGroupes.length && this.categorisation.groupes.length) {
               this.filtresGroupes = [...this.categorisation.groupes];
-              this.sauvegarderFiltres();
             }
+            if (!this.filtresTypes.length && this.categorisation.types.length) {
+              this.filtresTypes = [...this.categorisation.types];
+            }
+            if (!this.filtresMatieres.length && this.categorisation.matieres.length) {
+              this.filtresMatieres = [...this.categorisation.matieres];
+            }
+            this.sauvegarderFiltres();
             this.messageCategories = `${this.categorisation.groupes.length} groupe(s), ${this.categorisation.types.length} type(s) et ${this.categorisation.matieres.length} matière(s) détectés dans ton flux ADE.`;
             this.chargerCours();
             this.chargerSemaine();
@@ -1144,6 +1318,7 @@
       },
 
       created() {
+        this.chargerInterface();
         this.chargerFiltres();
         const aujourd = new Date();
         this.semaineDate = `${aujourd.getFullYear()}-${String(aujourd.getMonth() + 1).padStart(2, '0')}-${String(aujourd.getDate()).padStart(2, '0')}`;

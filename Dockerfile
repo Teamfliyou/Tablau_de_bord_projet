@@ -22,8 +22,10 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ backend/
 COPY frontend/ frontend/
 
-# 3) Port de l'API + du frontend (servi par FastAPI)
+# 3) Port de l'API + du frontend (servi par FastAPI).
+#    Cloud Run injecte $PORT (par défaut 8080) ; fallback local à 8000.
 EXPOSE 8000
 
-# 4) Lancement : API + SPA en un seul processus
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 4) Lancement : API + SPA en un seul processus.
+#    Forme shell (plutôt que exec) pour interpoler ${PORT:-8000}.
+CMD uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}

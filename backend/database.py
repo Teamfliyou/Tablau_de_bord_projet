@@ -4,13 +4,21 @@ from sqlalchemy import Column, Integer, String, create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Surchargeable via l'environnement (ex. Docker) ; sinon base SQLite locale.
+# Surchargeable via l'environnement (ex. Docker ou PaaS Render) ; sinon base SQLite locale.
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-)
+# Render fournit souvent une URL au format historique postgres://
+# (non reconnu par psycopg2) : on la normalise en postgresql://.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# connect_args={"check_same_thread": False} est spécifique à SQLite :
+# on ne l'ajoute que pour une base SQLite, jamais pour PostgreSQL.
+_engine_kwargs = {}
+if DATABASE_URL.startswith("sqlite"):
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -40,7 +48,11 @@ Base.metadata.create_all(bind=engine)
 
 
 def _migrer():
-    """Ajoute les nouvelles colonnes à une base existante sans perdre les données."""
+    """Ajoute les nouvelles colonnes à une base SQLite existante sans perdre les données."""
+    # PRAGMA table_info est spécifique à SQLite : la migration ne concerne que SQLite.
+    # Pour PostgreSQL, le schéma est géré par Base.metadata.create_all() ci-dessus.
+    if not DATABASE_URL.startswith("sqlite"):
+        return
     with engine.begin() as conn:
         colonnes = {row[1] for row in conn.execute(text("PRAGMA table_info(devoirs)"))}
         ajouts = {

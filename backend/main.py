@@ -3,21 +3,24 @@ import json
 import os
 import re
 import time
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 import httpx
+import jwt
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from ics import Calendar
+from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from database import Config, Devoir, SessionLocal
+from database import Devoir, SessionLocal, User
 
 load_dotenv()
 
@@ -42,8 +45,80 @@ def get_db():
 
 
 # ---------------------------------------------------------------------------
+#  Authentification : mots de passe (bcrypt) & tokens JWT
+# ---------------------------------------------------------------------------
+SECRET_KEY = os.getenv("SECRET_KEY", "cle-de-developpement-a-changer-en-production")
+JWT_ALGORITHME = "HS256"
+JWT_EXPIRATION_MINUTES = 60 * 24  # 24 heures
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def hacher_mdp(mot_de_passe: str) -> str:
+    return pwd_context.hash(mot_de_passe)
+
+
+def verifier_mdp(mot_de_passe: str, hash_: str) -> bool:
+    try:
+        return pwd_context.verify(mot_de_passe, hash_)
+    except Exception:
+        return False
+
+
+def creer_token(user: User) -> str:
+    """Génère un token JWT signé contenant l'identifiant de l'utilisateur."""
+    payload = {
+        "sub": str(user.id),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRATION_MINUTES),
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHME)
+
+
+def obtenir_utilisateur_actuel(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """Dépendance FastAPI : décode le Bearer token et renvoie l'utilisateur connecté."""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Authentification requise")
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[JWT_ALGORITHME])
+        user_id = int(payload.get("sub"))
+    except (jwt.PyJWTError, ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Token invalide ou expiré")
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=401, detail="Utilisateur introuvable")
+    return user
+
+
+def profil_utilisateur(user: User) -> dict:
+    """Sérialise un utilisateur (sans jamais exposer le hash du mot de passe)."""
+    return {
+        "id": user.id,
+        "email": user.email,
+        "username": user.username or user.email.split("@")[0],
+        "ade_url": user.ade_ics_url or "",
+        "gemini_key": user.gemini_api_key or "",
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+# ---------------------------------------------------------------------------
 #  Schémas
 # ---------------------------------------------------------------------------
+class UtilisateurInscription(BaseModel):
+    email: str
+    password: str
+    username: str = ""
+
+
+class UtilisateurConnexion(BaseModel):
+    email: str
+    password: str
+
+
 class DevoirCreate(BaseModel):
     titre: str
     matiere: str = ""
@@ -72,13 +147,11 @@ _CACHE_ICS = {"url": None, "contenu": None, "stocke_a": 0.0}
 TTL_CACHE_ICS = 300  # secondes (5 minutes)
 
 
-def obtenir_url_ade(db: Session = None) -> str:
-    """Renvoie l'URL ADE : config en base, sinon variable d'environnement."""
+def obtenir_url_ade(user: User = None) -> str:
+    """Renvoie l'URL ADE de l'utilisateur connecté, sinon la variable d'environnement."""
     url = None
-    if db is not None:
-        config = db.query(Config).first()
-        if config and config.ade_url:
-            url = config.ade_url
+    if user is not None and user.ade_ics_url:
+        url = user.ade_ics_url
     if not url:
         url = os.getenv("ADE_ICS_URL")
     if not url:
@@ -295,23 +368,23 @@ def appliquer_filtres(cours: list, groupes: list = None, types: list = None, mat
     return gardes
 
 
-def charger_cours(db: Session = None) -> list:
-    """Télécharge et parse tous les cours du flux ADE."""
-    url = obtenir_url_ade(db)
+def charger_cours(user: User = None) -> list:
+    """Télécharge et parse tous les cours du flux ADE de l'utilisateur."""
+    url = obtenir_url_ade(user)
     return parser_cours(telecharger_ics(url))
 
 
-def charger_cours_du_jour(db: Session = None, jour: date = None) -> dict:
+def charger_cours_du_jour(user: User = None, jour: date = None) -> dict:
     """Cours d'une journée précise (aujourd'hui par défaut) filtrés depuis le flux ADE."""
-    tous_les_cours = charger_cours(db)
+    tous_les_cours = charger_cours(user)
     jour = jour or date.today()
     cours = [c for c in tous_les_cours if c["date"] == jour.isoformat()]
     return {"date": jour.isoformat(), "nb_cours": len(cours), "cours": cours}
 
 
-def charger_cours_semaine(db: Session = None, ref: date = None) -> dict:
+def charger_cours_semaine(user: User = None, ref: date = None) -> dict:
     """Cours du lundi au vendredi de la semaine contenant `ref` (aujourd'hui par défaut)."""
-    tous_les_cours = charger_cours(db)
+    tous_les_cours = charger_cours(user)
     ref = ref or date.today()
     lundi = ref - timedelta(days=ref.weekday())
     vendredi = lundi + timedelta(days=4)
@@ -336,6 +409,47 @@ def parser_date(valeur: Optional[str]) -> Optional[date]:
         )
 
 
+# ---------------------------------------------------------------------------
+#  Authentification : inscription, connexion, profil
+# ---------------------------------------------------------------------------
+@app.post("/api/auth/register")
+def inscription(data: UtilisateurInscription, db: Session = Depends(get_db)):
+    """Inscription d'un nouvel utilisateur : renvoie un token JWT + son profil."""
+    email = data.email.strip().lower()
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+        raise HTTPException(status_code=400, detail="Adresse e-mail invalide")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 8 caractères")
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="Un compte existe déjà avec cet e-mail")
+
+    user = User(
+        email=email,
+        password_hash=hacher_mdp(data.password),
+        username=data.username.strip(),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"token": creer_token(user), "user": profil_utilisateur(user)}
+
+
+@app.post("/api/auth/login")
+def connexion(data: UtilisateurConnexion, db: Session = Depends(get_db)):
+    """Connexion : vérifie les identifiants et renvoie un token JWT."""
+    email = data.email.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+    if user is None or not verifier_mdp(data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="E-mail ou mot de passe incorrect")
+    return {"token": creer_token(user), "user": profil_utilisateur(user)}
+
+
+@app.get("/api/auth/me")
+def profil_actuel(user: User = Depends(obtenir_utilisateur_actuel)):
+    """Renvoie le profil de l'utilisateur connecté."""
+    return profil_utilisateur(user)
+
+
 @app.get("/api/cours-du-jour")
 def get_cours_du_jour(
     date: Optional[str] = None,
@@ -343,8 +457,9 @@ def get_cours_du_jour(
     types: Optional[list[str]] = Query(default=None),
     matieres: Optional[list[str]] = Query(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(obtenir_utilisateur_actuel),
 ):
-    resultat = charger_cours_du_jour(db, parser_date(date))
+    resultat = charger_cours_du_jour(user, parser_date(date))
     resultat["cours"] = appliquer_filtres(resultat["cours"], groupes, types, matieres)
     resultat["nb_cours"] = len(resultat["cours"])
     return resultat
@@ -357,24 +472,25 @@ def get_cours_semaine(
     types: Optional[list[str]] = Query(default=None),
     matieres: Optional[list[str]] = Query(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(obtenir_utilisateur_actuel),
 ):
-    resultat = charger_cours_semaine(db, parser_date(date))
+    resultat = charger_cours_semaine(user, parser_date(date))
     resultat["cours"] = appliquer_filtres(resultat["cours"], groupes, types, matieres)
     return resultat
 
 
 # ---------------------------------------------------------------------------
-#  Devoirs (SQLite via SQLAlchemy)
+#  Devoirs (SQLite via SQLAlchemy) — isolés par utilisateur
 # ---------------------------------------------------------------------------
 @app.get("/api/devoirs")
-def lister_devoirs(db: Session = Depends(get_db)):
-    return db.query(Devoir).all()
+def lister_devoirs(db: Session = Depends(get_db), user: User = Depends(obtenir_utilisateur_actuel)):
+    return db.query(Devoir).filter(Devoir.user_id == user.id).all()
 
 
 @app.get("/api/devoirs/export")
-def exporter_devoirs(db: Session = Depends(get_db)):
-    """Exporte tous les devoirs au format JSON (sans les identifiants internes)."""
-    devoirs = db.query(Devoir).all()
+def exporter_devoirs(db: Session = Depends(get_db), user: User = Depends(obtenir_utilisateur_actuel)):
+    """Exporte tous les devoirs de l'utilisateur au format JSON (sans les identifiants internes)."""
+    devoirs = db.query(Devoir).filter(Devoir.user_id == user.id).all()
     return [
         {
             "titre": d.titre,
@@ -388,7 +504,11 @@ def exporter_devoirs(db: Session = Depends(get_db)):
 
 
 @app.post("/api/devoirs/import")
-def importer_devoirs(devoirs: list[DevoirCreate], db: Session = Depends(get_db)):
+def importer_devoirs(
+    devoirs: list[DevoirCreate],
+    db: Session = Depends(get_db),
+    user: User = Depends(obtenir_utilisateur_actuel),
+):
     """Importe une liste de devoirs au format JSON et retourne le nombre ajouté."""
     importes = 0
     for item in devoirs:
@@ -399,6 +519,7 @@ def importer_devoirs(devoirs: list[DevoirCreate], db: Session = Depends(get_db))
                 echeance=item.echeance,
                 type=item.type,
                 statut=item.statut,
+                user_id=user.id,
             )
         )
         importes += 1
@@ -407,13 +528,14 @@ def importer_devoirs(devoirs: list[DevoirCreate], db: Session = Depends(get_db))
 
 
 @app.post("/api/devoirs")
-def creer_devoir(devoir: DevoirCreate, db: Session = Depends(get_db)):
+def creer_devoir(devoir: DevoirCreate, db: Session = Depends(get_db), user: User = Depends(obtenir_utilisateur_actuel)):
     nouveau = Devoir(
         titre=devoir.titre,
         matiere=devoir.matiere,
         echeance=devoir.echeance,
         type=devoir.type,
         statut=devoir.statut,
+        user_id=user.id,
     )
     db.add(nouveau)
     db.commit()
@@ -422,8 +544,13 @@ def creer_devoir(devoir: DevoirCreate, db: Session = Depends(get_db)):
 
 
 @app.patch("/api/devoirs/{devoir_id}")
-def maj_devoir(devoir_id: int, mise_a_jour: DevoirUpdate, db: Session = Depends(get_db)):
-    devoir = db.query(Devoir).filter(Devoir.id == devoir_id).first()
+def maj_devoir(
+    devoir_id: int,
+    mise_a_jour: DevoirUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(obtenir_utilisateur_actuel),
+):
+    devoir = db.query(Devoir).filter(Devoir.id == devoir_id, Devoir.user_id == user.id).first()
     if devoir is None:
         raise HTTPException(status_code=404, detail="Devoir introuvable")
     if mise_a_jour.statut is not None:
@@ -434,8 +561,8 @@ def maj_devoir(devoir_id: int, mise_a_jour: DevoirUpdate, db: Session = Depends(
 
 
 @app.delete("/api/devoirs/{devoir_id}")
-def supprimer_devoir(devoir_id: int, db: Session = Depends(get_db)):
-    devoir = db.query(Devoir).filter(Devoir.id == devoir_id).first()
+def supprimer_devoir(devoir_id: int, db: Session = Depends(get_db), user: User = Depends(obtenir_utilisateur_actuel)):
+    devoir = db.query(Devoir).filter(Devoir.id == devoir_id, Devoir.user_id == user.id).first()
     if devoir is None:
         raise HTTPException(status_code=404, detail="Devoir introuvable")
     db.delete(devoir)
@@ -444,42 +571,30 @@ def supprimer_devoir(devoir_id: int, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
-#  Configuration
+#  Configuration (propre à chaque utilisateur)
 # ---------------------------------------------------------------------------
 @app.get("/api/config")
-def get_config(db: Session = Depends(get_db)):
-    config = db.query(Config).first()
-    if config is None:
-        return {
-            "username": os.getenv("USERNAME", ""),
-            "ade_url": os.getenv("ADE_ICS_URL", ""),
-            "gemini_key": os.getenv("GEMINI_API_KEY", ""),
-        }
+def get_config(db: Session = Depends(get_db), user: User = Depends(obtenir_utilisateur_actuel)):
     return {
-        "username": config.username,
-        "ade_url": config.ade_url,
-        "gemini_key": config.gemini_key,
+        "username": user.username or user.email.split("@")[0],
+        "ade_url": user.ade_ics_url or "",
+        "gemini_key": user.gemini_api_key or "",
     }
 
 
 @app.post("/api/config")
-def save_config(data: ConfigUpdate, db: Session = Depends(get_db)):
-    config = db.query(Config).first()
-    if config is None:
-        config = Config(id=1, username=data.username, ade_url=data.ade_url, gemini_key=data.gemini_key)
-        db.add(config)
-    else:
-        config.username = data.username
-        config.ade_url = data.ade_url
-        config.gemini_key = data.gemini_key
+def save_config(data: ConfigUpdate, db: Session = Depends(get_db), user: User = Depends(obtenir_utilisateur_actuel)):
+    user.username = data.username.strip()
+    user.ade_ics_url = data.ade_url.strip()
+    user.gemini_api_key = data.gemini_key.strip()
     db.commit()
     return {"detail": "Configuration enregistrée"}
 
 
 @app.get("/api/config/categories")
-def analyser_categories(db: Session = Depends(get_db)):
-    """Télécharge le flux ADE et en extrait automatiquement les groupes, types et matières."""
-    tous = charger_cours(db)
+def analyser_categories(db: Session = Depends(get_db), user: User = Depends(obtenir_utilisateur_actuel)):
+    """Télécharge le flux ADE de l'utilisateur et en extrait groupes, types et matières."""
+    tous = charger_cours(user)
     groupes, types, matieres = [], [], []
     for c in tous:
         for g in c.get("groupes", []):
@@ -597,16 +712,14 @@ def generer_plan_revision(
     types: Optional[list[str]] = Query(default=None),
     matieres: Optional[list[str]] = Query(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(obtenir_utilisateur_actuel),
 ):
     """Génère un plan de révision du soir (Gemini si configuré, sinon simulation)."""
-    cours = appliquer_filtres(charger_cours_du_jour(db)["cours"], groupes, types, matieres)
-    devoirs = db.query(Devoir).all()
+    cours = appliquer_filtres(charger_cours_du_jour(user)["cours"], groupes, types, matieres)
+    devoirs = db.query(Devoir).filter(Devoir.user_id == user.id).all()
     prompt = construire_prompt(cours, devoirs)
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    config = db.query(Config).first()
-    if config and config.gemini_key:
-        api_key = config.gemini_key
+    api_key = user.gemini_api_key or os.getenv("GEMINI_API_KEY")
 
     if api_key:
         try:

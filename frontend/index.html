@@ -53,6 +53,7 @@
 
   <div id="app" class="min-h-screen">
 
+    <template v-if="connecte">
     <!-- ==================== SIDEBAR CLASSIQUE (option "Classic Sidebar") ==================== -->
     <aside
       v-if="interfaceStyle === 'classic'"
@@ -85,6 +86,16 @@
       <div class="pt-4 border-t border-white/40 px-2">
         <p class="text-xs text-slate-400">{{ dateDuJour }}</p>
       </div>
+
+      <button
+        type="button"
+        @click="seDeconnecter"
+        class="mt-4 w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition">
+        <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+        Se déconnecter
+      </button>
     </aside>
 
     <!-- ==================== BARRE MOBILE (option "Classic Sidebar") ==================== -->
@@ -117,6 +128,17 @@
           aria-hidden="true"></span>
         <app-icon :name="onglet.icone" class="relative w-6 h-6 shrink-0"></app-icon>
         <span class="relative text-[9px] sm:text-[10px] font-semibold leading-none whitespace-nowrap">{{ onglet.label }}</span>
+      </button>
+      <span class="w-px h-8 bg-white/40 mx-1 sm:mx-2 hidden sm:block" aria-hidden="true"></span>
+      <button
+        type="button"
+        @click="seDeconnecter"
+        :title="'Se déconnecter (' + identifiantAffichable + ')'"
+        class="relative flex flex-col items-center justify-center gap-1 px-2 sm:px-4 py-2 sm:py-2.5 rounded-full transition-all duration-300 text-slate-500 hover:text-rose-600">
+        <svg class="relative w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+        <span class="relative text-[9px] sm:text-[10px] font-semibold leading-none whitespace-nowrap">Déconnexion</span>
       </button>
     </nav>
 
@@ -846,9 +868,143 @@
       </section>
 
       <footer class="max-w-7xl mx-auto mt-14">
-        <p class="text-xs text-slate-400 text-center">Emploi du temps ADE · Devoirs (SQLite) · Génération IA à la demande · Projet personnel</p>
+        <p class="text-xs text-slate-400 text-center">Emploi du temps ADE · Devoirs · Génération IA à la demande · Multi-utilisateurs</p>
       </footer>
     </main>
+    </template>
+
+    <!-- ==================== ÉCRAN DE CONNEXION / INSCRIPTION ==================== -->
+    <div v-else class="min-h-screen flex items-center justify-center px-4 py-10">
+      <div class="w-full max-w-md">
+        <div class="text-center mb-8">
+          <div class="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.42a12.08 12.08 0 01.84 6.42M12 14v6M5 10v6a4 4 0 0014 0" />
+            </svg>
+          </div>
+          <h1 class="mt-4 text-2xl font-bold text-slate-900">Tableau de bord étudiant</h1>
+          <p class="text-sm text-slate-500 mt-1">{{ authMode === 'login' ? 'Connecte-toi pour retrouver ton tableau de bord.' : 'Crée ton compte gratuitement.' }}</p>
+        </div>
+
+        <div class="bg-white/60 backdrop-blur-2xl rounded-3xl border border-white/40 shadow-xl shadow-indigo-500/10 p-6 sm:p-8">
+          <div class="flex rounded-xl bg-slate-100/70 p-1 mb-6">
+            <button
+              type="button"
+              @click="authMode = 'login'; authErreur = ''"
+              class="flex-1 py-2 rounded-lg text-sm font-semibold transition"
+              :class="authMode === 'login' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'">Connexion</button>
+            <button
+              type="button"
+              @click="authMode = 'register'; authErreur = ''"
+              class="flex-1 py-2 rounded-lg text-sm font-semibold transition"
+              :class="authMode === 'register' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'">Inscription</button>
+          </div>
+
+          <form @submit.prevent="seConnecter" class="space-y-4">
+            <div v-if="authMode === 'register'">
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Pseudo</label>
+              <input
+                v-model="authForm.username"
+                type="text"
+                placeholder="Ton pseudo"
+                class="w-full rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Adresse e-mail</label>
+              <input
+                v-model="authForm.email"
+                type="email"
+                required
+                placeholder="ton@email.fr"
+                class="w-full rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Mot de passe</label>
+              <input
+                v-model="authForm.password"
+                type="password"
+                required
+                :minlength="authMode === 'register' ? 8 : undefined"
+                placeholder="••••••••"
+                class="w-full rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              <p v-if="authMode === 'register'" class="text-xs text-slate-400 mt-1.5">8 caractères minimum.</p>
+            </div>
+
+            <p v-if="authErreur" class="rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-3.5">{{ authErreur }}</p>
+
+            <button
+              type="submit"
+              :disabled="authLoading"
+              class="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition">
+              <svg v-if="authLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ authLoading ? 'Un instant…' : (authMode === 'login' ? 'Se connecter' : "S'inscrire") }}
+            </button>
+          </form>
+        </div>
+
+        <p class="text-center text-xs text-slate-400 mt-6">Chaque compte dispose de ses propres devoirs et de sa propre configuration.</p>
+      </div>
+    </div>
+
+    <!-- ==================== ONBOARDING (première configuration) ==================== -->
+    <div v-if="onboardingVisible" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click.self="ignorerOnboarding"></div>
+      <div class="relative w-full max-w-lg bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-2xl p-6 sm:p-8">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0">
+            <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Bienvenue, {{ config.username || 'étudiant' }} !</h3>
+            <p class="text-sm text-slate-500">Terminons la configuration en 30 secondes.</p>
+          </div>
+        </div>
+
+        <form @submit.prevent="enregistrerOnboarding" class="mt-6 space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Lien d'export iCal / ADE <span class="text-rose-500">*</span></label>
+            <input
+              v-model="onboarding.ade_url"
+              type="url"
+              required
+              placeholder="https://ton-ecole.example.com/ade/ics?data=…"
+              class="w-full rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <p class="text-xs text-slate-400 mt-1.5">Indispensable pour afficher ton emploi du temps. Trouvé dans ton application ADE : Emploi du temps → Export / iCal.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Clé API Gemini <span class="text-slate-400">(optionnel)</span></label>
+            <input
+              v-model="onboarding.gemini_key"
+              type="password"
+              placeholder="AIza…"
+              autocomplete="off"
+              class="w-full rounded-xl border border-white/50 bg-white/60 backdrop-blur px-3.5 py-2.5 text-sm font-mono placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            <p class="text-xs text-slate-400 mt-1.5">Gratuite sur <span class="font-medium">https://aistudio.google.com/apikey</span>. Sans clé, le plan de révision fonctionne en mode simulation.</p>
+          </div>
+
+          <p v-if="onboardingErreur" class="rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-3.5">{{ onboardingErreur }}</p>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              :disabled="onboardingEnregistrement"
+              class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition">
+              {{ onboardingEnregistrement ? 'Enregistrement…' : 'Commencer' }}
+            </button>
+            <button
+              type="button"
+              @click="ignorerOnboarding"
+              class="px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-700 transition">Plus tard</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <!-- ==================== APPLICATION VUE ==================== -->
@@ -930,10 +1086,25 @@
           filtresGroupes: [],
           filtresTypes: [],
           filtresMatieres: [],
+          // Authentification
+          token: null,
+          utilisateur: null,
+          authMode: 'login',
+          authForm: { email: '', password: '', username: '' },
+          authLoading: false,
+          authErreur: '',
+          // Onboarding (première configuration)
+          onboardingVisible: false,
+          onboarding: { ade_url: '', gemini_key: '' },
+          onboardingEnregistrement: false,
+          onboardingErreur: '',
         };
       },
 
       computed: {
+        connecte() {
+          return !!this.token;
+        },
         identifiantAffichable() {
           return this.config.username || 'Étudiant';
         },
@@ -967,6 +1138,123 @@
       },
 
       methods: {
+        // ---- Authentification ----
+        entetes(extra = {}) {
+          return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + this.token, ...extra };
+        },
+        recupererToken() {
+          try { return localStorage.getItem('dashboard_token'); } catch (_) { return null; }
+        },
+        sauvegarderToken(t) {
+          try {
+            if (t) localStorage.setItem('dashboard_token', t);
+            else localStorage.removeItem('dashboard_token');
+          } catch (_) { /* stockage indisponible */ }
+        },
+        async validerSession() {
+          try {
+            const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: 'Bearer ' + this.token } });
+            if (!res.ok) throw new Error();
+            this.utilisateur = await res.json();
+            return true;
+          } catch (_) {
+            this.seDeconnecter();
+            return false;
+          }
+        },
+        async seConnecter() {
+          this.authLoading = true;
+          this.authErreur = '';
+          try {
+            const inscription = this.authMode === 'register';
+            const corps = inscription
+              ? { email: this.authForm.email, password: this.authForm.password, username: this.authForm.username }
+              : { email: this.authForm.email, password: this.authForm.password };
+            const res = await fetch(`${API_BASE}/auth/${inscription ? 'register' : 'login'}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(corps),
+            });
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
+            const data = await res.json();
+            this.token = data.token;
+            this.utilisateur = data.user;
+            this.sauvegarderToken(this.token);
+            this.initialiserDonnees();
+            this.verifierOnboarding(inscription);
+          } catch (e) {
+            this.authErreur = e.message || 'Impossible de se connecter.';
+          } finally {
+            this.authLoading = false;
+          }
+        },
+        seDeconnecter() {
+          this.token = null;
+          this.utilisateur = null;
+          this.sauvegarderToken(null);
+          this.devoirs = [];
+          this.cours = [];
+          this.coursSemaine = [];
+          this.plan = null;
+          this.config = { username: '', ade_url: '', gemini_key: '' };
+        },
+        initialiserDonnees() {
+          if (!this.connecte) return;
+          this.chargerConfig();
+          this.chargerCours();
+          this.chargerSemaine();
+          this.chargerDevoirs();
+        },
+
+        // ---- Onboarding (première configuration) ----
+        verifierOnboarding(force = false) {
+          if (!this.connecte || !this.utilisateur) return;
+          let ignore = false;
+          try { ignore = sessionStorage.getItem('onboarding_ignorer') === '1'; } catch (_) { /* indisponible */ }
+          if (force) ignore = false;
+          const manqueAde = !this.utilisateur.ade_url;
+          const manqueCle = !this.utilisateur.gemini_key;
+          if (!ignore && (manqueAde || manqueCle)) {
+            this.onboarding = {
+              ade_url: this.utilisateur.ade_url || '',
+              gemini_key: this.utilisateur.gemini_key || '',
+            };
+            this.onboardingErreur = '';
+            this.onboardingVisible = true;
+          }
+        },
+        async enregistrerOnboarding() {
+          this.onboardingEnregistrement = true;
+          this.onboardingErreur = '';
+          try {
+            if (!this.onboarding.ade_url.trim()) throw new Error('Renseigne ton lien ADE pour continuer.');
+            const res = await fetch(`${API_BASE}/config`, {
+              method: 'POST',
+              headers: this.entetes(),
+              body: JSON.stringify({
+                username: this.config.username || this.utilisateur.username || '',
+                ade_url: this.onboarding.ade_url.trim(),
+                gemini_key: this.onboarding.gemini_key.trim(),
+              }),
+            });
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
+            this.utilisateur.ade_url = this.onboarding.ade_url.trim();
+            this.utilisateur.gemini_key = this.onboarding.gemini_key.trim();
+            this.onboardingVisible = false;
+            await this.chargerConfig();
+            this.chargerCours();
+            this.chargerSemaine();
+          } catch (e) {
+            this.onboardingErreur = e.message || "Impossible d'enregistrer la configuration.";
+          } finally {
+            this.onboardingEnregistrement = false;
+          }
+        },
+        ignorerOnboarding() {
+          try { sessionStorage.setItem('onboarding_ignorer', '1'); } catch (_) { /* indisponible */ }
+          this.onboardingVisible = false;
+        },
+
         // ---- Emploi du temps ----
         filtresQuery() {
           const params = new URLSearchParams();
@@ -977,10 +1265,11 @@
           return qs ? `?${qs}` : '';
         },
         async chargerCours(silencieux = false) {
+          if (!this.connecte) return;
           if (!silencieux) this.chargementCours = true;
           this.erreurCours = null;
           try {
-            const res = await fetch(`${API_BASE}/cours-du-jour${this.filtresQuery()}`);
+            const res = await fetch(`${API_BASE}/cours-du-jour${this.filtresQuery()}`, { headers: this.entetes() });
             if (!res.ok) throw new Error();
             const data = await res.json();
             this.cours = data.cours || [];
@@ -991,13 +1280,14 @@
           }
         },
         async chargerSemaine() {
+          if (!this.connecte) return;
           this.chargementSemaine = true;
           this.erreurSemaine = null;
           try {
             const params = new URLSearchParams(this.filtresQuery().replace(/^\?/, ''));
             if (this.semaineDate) params.set('date', this.semaineDate);
             const qs = params.toString();
-            const res = await fetch(`${API_BASE}/cours-semaine${qs ? `?${qs}` : ''}`);
+            const res = await fetch(`${API_BASE}/cours-semaine${qs ? `?${qs}` : ''}`, { headers: this.entetes() });
             if (!res.ok) throw new Error();
             const data = await res.json();
             this.coursSemaine = data.cours || [];
@@ -1030,9 +1320,10 @@
 
         // ---- Devoirs ----
         async chargerDevoirs() {
+          if (!this.connecte) return;
           this.erreurDevoirs = null;
           try {
-            const res = await fetch(`${API_BASE}/devoirs`);
+            const res = await fetch(`${API_BASE}/devoirs`, { headers: this.entetes() });
             if (!res.ok) throw new Error();
             this.devoirs = await res.json();
           } catch (_) {
@@ -1045,7 +1336,7 @@
           try {
             const res = await fetch(`${API_BASE}/devoirs`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: this.entetes(),
               body: JSON.stringify({
                 titre,
                 matiere: this.nouveauDevoir.matiere.trim(),
@@ -1067,7 +1358,7 @@
           try {
             const res = await fetch(`${API_BASE}/devoirs`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: this.entetes(),
               body: JSON.stringify({ titre, statut: 'a_faire' }),
             });
             if (!res.ok) throw new Error();
@@ -1081,7 +1372,7 @@
           try {
             const res = await fetch(`${API_BASE}/devoirs/${d.id}`, {
               method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
+              headers: this.entetes(),
               body: JSON.stringify({ statut }),
             });
             if (!res.ok) throw new Error();
@@ -1102,7 +1393,7 @@
         },
         async supprimerDevoir(d) {
           try {
-            const res = await fetch(`${API_BASE}/devoirs/${d.id}`, { method: 'DELETE' });
+            const res = await fetch(`${API_BASE}/devoirs/${d.id}`, { method: 'DELETE', headers: this.entetes() });
             if (!res.ok) throw new Error();
             await this.chargerDevoirs();
           } catch (_) {
@@ -1111,7 +1402,7 @@
         },
         async exporterDevoirs() {
           try {
-            const res = await fetch(`${API_BASE}/devoirs/export`);
+            const res = await fetch(`${API_BASE}/devoirs/export`, { headers: this.entetes() });
             if (!res.ok) throw new Error();
             const devoirs = await res.json();
             const blob = new Blob([JSON.stringify(devoirs, null, 2)], { type: 'application/json' });
@@ -1140,7 +1431,7 @@
             if (!Array.isArray(devoirs)) throw new Error();
             const res = await fetch(`${API_BASE}/devoirs/import`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: this.entetes(),
               body: JSON.stringify(devoirs),
             });
             if (!res.ok) throw new Error();
@@ -1205,10 +1496,11 @@
 
         // ---- Plan IA ----
         async genererPlanIA() {
+          if (!this.connecte) return;
           this.chargementPlan = true;
           this.erreurPlan = null;
           try {
-            const res = await fetch(`${API_BASE}/plan-revision${this.filtresQuery()}`, { method: 'POST' });
+            const res = await fetch(`${API_BASE}/plan-revision${this.filtresQuery()}`, { method: 'POST', headers: this.entetes() });
             if (!res.ok) throw new Error(await this.extraitErreur(res));
             this.plan = await res.json();
           } catch (e) {
@@ -1239,10 +1531,11 @@
 
         // ---- Configuration ----
         async chargerConfig() {
+          if (!this.connecte) return;
           this.chargementConfig = true;
           this.configErreur = '';
           try {
-            const res = await fetch(`${API_BASE}/config`);
+            const res = await fetch(`${API_BASE}/config`, { headers: this.entetes() });
             if (!res.ok) throw new Error();
             this.config = await res.json();
           } catch (_) {
@@ -1258,7 +1551,7 @@
           try {
             const res = await fetch(`${API_BASE}/config`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: this.entetes(),
               body: JSON.stringify(this.config),
             });
             if (!res.ok) throw new Error();
@@ -1347,11 +1640,12 @@
           this.chargerSemaine();
         },
         async analyserCategories() {
+          if (!this.connecte) return;
           this.chargementCategories = true;
           this.erreurCategories = '';
           this.messageCategories = '';
           try {
-            const res = await fetch(`${API_BASE}/config/categories`);
+            const res = await fetch(`${API_BASE}/config/categories`, { headers: this.entetes() });
             if (!res.ok) throw new Error(await this.extraitErreur(res));
             const data = await res.json();
             this.categorisation = {
@@ -1380,17 +1674,21 @@
         },
       },
 
-      created() {
+      async created() {
         this.chargerInterface();
         this.chargerFiltres();
         const aujourd = new Date();
         this.semaineDate = `${aujourd.getFullYear()}-${String(aujourd.getMonth() + 1).padStart(2, '0')}-${String(aujourd.getDate()).padStart(2, '0')}`;
-        this.chargerCours();
-        this.chargerSemaine();
-        this.chargerDevoirs();
-        this.chargerConfig();
         this.majHeure();
-        setInterval(() => this.chargerCours(true), 60000);
+        const token = this.recupererToken();
+        if (token) {
+          this.token = token;
+          if (await this.validerSession()) {
+            this.initialiserDonnees();
+            this.verifierOnboarding(false);
+          }
+        }
+        setInterval(() => { if (this.connecte) this.chargerCours(true); }, 60000);
         setInterval(() => this.majHeure(), 30000);
       },
     }).component('AppIcon', {

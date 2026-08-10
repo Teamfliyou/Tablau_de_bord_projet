@@ -34,6 +34,14 @@ Dashboard personnel **Full-Stack** pour visualiser son emploi du temps en temps 
 
 ## 🛠️ Guide d'installation complet des dépendances
 
+### ⚡ Installation ultra-rapide en une ligne
+
+Le script `install.sh` vérifie et installe automatiquement les dépendances système (`git`, `python3`, `python3-pip`, `python3-venv`, `curl`), clone le dépôt, rend `lancer_app.sh` exécutable puis lance l'application.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Teamfliyou/Tablau_de_bord_projet/main/install.sh | bash
+```
+
 Avant de pouvoir utiliser l'application, tu dois installer les outils de base sur ta machine. Suis la section correspondant à ton système d'exploitation.
 
 ---

@@ -12,9 +12,8 @@ PROJET_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$PROJET_DIR/backend"
 FRONTEND_DIR="$PROJET_DIR/frontend"
 VENV="$BACKEND_DIR/.venv"
-URL_APP="http://localhost:8080"
+URL_APP="http://localhost:8000"
 PORT_BACKEND=8000
-PORT_FRONTEND=8080
 
 echo "======================================================="
 echo "  Tableau de bord étudiant — Démarrage"
@@ -31,9 +30,9 @@ source "$VENV/bin/activate"
 pip install -r "$BACKEND_DIR/requirements.txt" -q
 echo "  ✓ .venv prêt"
 
-# 2) Backend uvicorn sur le port 8000
+# 2) Backend uvicorn sur le port 8000 (sert l'API ET le frontend)
 echo
-echo "[2/4] Backend FastAPI…"
+echo "[2/3] Backend FastAPI (API + frontend)…"
 if curl -s -o /dev/null -m 1 "http://localhost:$PORT_BACKEND/"; then
   echo "  ✓ uvicorn déjà lancé sur le port $PORT_BACKEND"
 else
@@ -49,25 +48,9 @@ else
   fi
 fi
 
-# 3) Frontend statique sur le port 8080
+# 3) Ouverture dans Chrome en mode application
 echo
-echo "[3/4] Serveur frontend…"
-if curl -s -o /dev/null -m 1 "http://localhost:$PORT_FRONTEND/"; then
-  echo "  ✓ Vue web déjà servie sur le port $PORT_FRONTEND"
-else
-  echo "  Démarrage de http.server sur le port $PORT_FRONTEND…"
-  (cd "$FRONTEND_DIR" && setsid nohup python3 -m http.server "$PORT_FRONTEND" > "$PROJET_DIR/http_frontend.log" 2>&1 < /dev/null &)
-  sleep 1
-  if curl -s -o /dev/null -m 1 "http://localhost:$PORT_FRONTEND/"; then
-    echo "  ✓ Frontend lancé sur http://localhost:$PORT_FRONTEND"
-  else
-    echo "  ⚠ Frontend non détecté — consulte http_frontend.log"
-  fi
-fi
-
-# 4) Ouverture dans Chrome en mode application
-echo
-echo "[4/4] Ouverture de l'application…"
+echo "[3/3] Ouverture de l'application…"
 sleep 1
 
 CHROME=""

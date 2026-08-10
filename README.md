@@ -82,8 +82,8 @@ brew install --cask docker
 Ouvre un terminal (PowerShell sur Windows, Terminal sur Linux/macOS) :
 
 ```bash
-git clone <URL_DU_DEPOT> tableau-de-bord-etudiant
-cd tableau-de-bord-etudiant
+git clone [https://github.com/Teamfliyou/Tablau_de_bord_projet.git](https://github.com/Teamfliyou/Tablau_de_bord_projet.git)
+cd Tablau_de_bord_projet
 ```
 
 ---

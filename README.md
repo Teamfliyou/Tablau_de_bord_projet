@@ -233,6 +233,8 @@ Tablau_de_bord_projet/
 | `GET` | `/api/cours-semaine` | Récupère les cours de la semaine pour une date donnée |
 | `GET` | `/api/devoirs` | Liste l'ensemble des devoirs stockés en base |
 | `POST` | `/api/devoirs` | Crée un nouveau devoir |
+| `GET` | `/api/devoirs/export` | Exporte tous les devoirs au format JSON |
+| `POST` | `/api/devoirs/import` | Importe une liste de devoirs au format JSON |
 | `PATCH` | `/api/devoirs/{id}` | Met à jour le statut d'un devoir (*a_faire*, *en_cours*, *termine*) |
 | `DELETE` | `/api/devoirs/{id}` | Supprime un devoir |
 | `POST` | `/api/plan-revision` | Génère le plan de révision IA à partir des cours et devoirs |
@@ -262,3 +264,15 @@ docker compose logs -f app     # Affiche les logs du backend en temps réel
 ## 📄 Licence
 
 Projet distribué sous licence **MIT**. Réutilisation, modification et distribution libres.
+
+---
+
+## 📦 Changelog
+
+### 🚀 v1.1.0
+
+Optimisations de performance et nouvelles fonctionnalités de sauvegarde :
+
+- **Migration `requests` → `httpx`** : le téléchargement du flux iCal ADE utilise désormais le client HTTP asynchrone `httpx` (plus rapide et plus léger que `requests`).
+- **Cache mémoire du flux ADE** : le fichier iCal téléchargé est mis en cache en mémoire pendant **5 minutes** (TTL). Les requêtes répétitives vers le serveur ADE sont ainsi évitées et le temps de réponse des endpoints emploi du temps est fortement réduit.
+- **Export / Import des devoirs** : deux nouveaux boutons dans l'onglet Devoirs (Kanban) permettent de sauvegarder (`GET /api/devoirs/export`) et de restaurer (`POST /api/devoirs/import`) tous les devoirs au format JSON, pour une sauvegarde locale simple et rapide.

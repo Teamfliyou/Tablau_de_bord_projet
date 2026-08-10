@@ -1,12 +1,14 @@
+import asyncio
 import json
 import os
 import re
+import time
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-import requests
+import httpx
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -63,6 +65,13 @@ class ConfigUpdate(BaseModel):
 # ---------------------------------------------------------------------------
 #  Emploi du temps (parsing iCal ADE réel)
 # ---------------------------------------------------------------------------
+
+# Cache mémoire temporaire du flux iCal ADE (TTL 5 min) : évite de re-télécharger
+# le flux à chaque requête, accélère les temps de réponse et réduit la charge du serveur ADE.
+_CACHE_ICS = {"url": None, "contenu": None, "stocke_a": 0.0}
+TTL_CACHE_ICS = 300  # secondes (5 minutes)
+
+
 def obtenir_url_ade(db: Session = None) -> str:
     """Renvoie l'URL ADE : config en base, sinon variable d'environnement."""
     url = None
@@ -80,17 +89,32 @@ def obtenir_url_ade(db: Session = None) -> str:
     return url
 
 
-def telecharger_ics(url: str) -> str:
-    """Télécharge le fichier .ics depuis l'URL ADE fournie."""
-    try:
-        reponse = requests.get(url, timeout=20)
+async def _telecharger_ics_async(url: str) -> str:
+    """Téléchargement asynchrone du flux .ics via httpx.AsyncClient."""
+    async with httpx.AsyncClient(timeout=20) as client:
+        reponse = await client.get(url)
         reponse.raise_for_status()
-    except requests.RequestException as exc:
+        return reponse.text
+
+
+def telecharger_ics(url: str) -> str:
+    """Télécharge le fichier .ics depuis l'URL ADE fournie (avec cache mémoire de 5 min)."""
+    maintenant = time.monotonic()
+    if _CACHE_ICS["url"] == url and (maintenant - _CACHE_ICS["stocke_a"]) < TTL_CACHE_ICS:
+        return _CACHE_ICS["contenu"]
+
+    try:
+        contenu = asyncio.run(_telecharger_ics_async(url))
+    except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=502,
             detail=f"Impossible de télécharger le flux ADE ({url}) : {exc}",
         )
-    return reponse.text
+
+    # On ne met en cache que les téléchargements réussis : un échec
+    # laisse donc la version précédente disponible jusqu'à expiration.
+    _CACHE_ICS.update(url=url, contenu=contenu, stocke_a=maintenant)
+    return contenu
 
 
 def parser_cours(contenu: str) -> list:
@@ -345,6 +369,41 @@ def get_cours_semaine(
 @app.get("/api/devoirs")
 def lister_devoirs(db: Session = Depends(get_db)):
     return db.query(Devoir).all()
+
+
+@app.get("/api/devoirs/export")
+def exporter_devoirs(db: Session = Depends(get_db)):
+    """Exporte tous les devoirs au format JSON (sans les identifiants internes)."""
+    devoirs = db.query(Devoir).all()
+    return [
+        {
+            "titre": d.titre,
+            "matiere": d.matiere,
+            "echeance": d.echeance,
+            "type": d.type,
+            "statut": d.statut,
+        }
+        for d in devoirs
+    ]
+
+
+@app.post("/api/devoirs/import")
+def importer_devoirs(devoirs: list[DevoirCreate], db: Session = Depends(get_db)):
+    """Importe une liste de devoirs au format JSON et retourne le nombre ajouté."""
+    importes = 0
+    for item in devoirs:
+        db.add(
+            Devoir(
+                titre=item.titre,
+                matiere=item.matiere,
+                echeance=item.echeance,
+                type=item.type,
+                statut=item.statut,
+            )
+        )
+        importes += 1
+    db.commit()
+    return {"detail": f"{importes} devoir(s) importé(s)", "nb_importes": importes}
 
 
 @app.post("/api/devoirs")

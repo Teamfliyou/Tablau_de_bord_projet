@@ -487,6 +487,29 @@
             <h2 class="text-2xl font-bold text-slate-900">Devoirs</h2>
             <p class="text-sm text-slate-500">Tableau Kanban : glisse tes devoirs entre les statuts.</p>
           </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              @click="exporterDevoirs"
+              title="Sauvegarder tous les devoirs au format JSON"
+              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium border transition bg-white/60 backdrop-blur text-slate-600 border-white/50 hover:border-indigo-300 hover:text-indigo-600">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Exporter
+            </button>
+            <button
+              type="button"
+              @click="ouvrirImportDevoirs"
+              title="Restaurer des devoirs depuis un fichier JSON"
+              class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium border transition bg-white/60 backdrop-blur text-slate-600 border-white/50 hover:border-indigo-300 hover:text-indigo-600">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0L9 8m4 4V4" />
+              </svg>
+              Importer
+            </button>
+            <input ref="fichierImportDevoirs" type="file" accept="application/json,.json" class="hidden" @change="importerDevoirs" />
+          </div>
         </header>
 
         <!-- Formulaire d'ajout -->
@@ -1084,6 +1107,46 @@
             await this.chargerDevoirs();
           } catch (_) {
             this.erreurDevoirs = 'Impossible de supprimer le devoir.';
+          }
+        },
+        async exporterDevoirs() {
+          try {
+            const res = await fetch(`${API_BASE}/devoirs/export`);
+            if (!res.ok) throw new Error();
+            const devoirs = await res.json();
+            const blob = new Blob([JSON.stringify(devoirs, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const lien = document.createElement('a');
+            lien.href = url;
+            lien.download = `devoirs_${this.dateDuJourIso}.json`;
+            document.body.appendChild(lien);
+            lien.click();
+            document.body.removeChild(lien);
+            URL.revokeObjectURL(url);
+          } catch (_) {
+            this.erreurDevoirs = 'Impossible d\'exporter les devoirs.';
+          }
+        },
+        ouvrirImportDevoirs() {
+          this.$refs.fichierImportDevoirs.value = '';
+          this.$refs.fichierImportDevoirs.click();
+        },
+        async importerDevoirs(event) {
+          const fichier = event.target.files && event.target.files[0];
+          if (!fichier) return;
+          try {
+            const contenu = await fichier.text();
+            const devoirs = JSON.parse(contenu);
+            if (!Array.isArray(devoirs)) throw new Error();
+            const res = await fetch(`${API_BASE}/devoirs/import`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(devoirs),
+            });
+            if (!res.ok) throw new Error();
+            await this.chargerDevoirs();
+          } catch (_) {
+            this.erreurDevoirs = 'Impossible d\'importer les devoirs : fichier JSON invalide.';
           }
         },
         devoirsParStatut(statut) {

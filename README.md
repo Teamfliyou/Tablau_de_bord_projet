@@ -1,238 +1,51 @@
 # 🎓 Tableau de bord étudiant
 
-Dashboard personnel **Full-Stack** pour visualiser son emploi du temps en temps réel 📅 (flux iCal ADE Campus), gérer ses devoirs 📝 et générer un **plan de révision intelligent** 🧠 grâce à une IA (Google Gemini).
+Dashboard personnel **Full-Stack** pour visualiser son emploi du temps en temps réel (flux iCal ADE Campus), gérer ses devoirs via un tableau Kanban et bénéficier d'un **plan de révision intelligent** généré par IA (Google Gemini).
 
-> Stack : **FastAPI** (backend Python) + **Vue.js 3 / Tailwind CSS** (frontend) + **SQLite** (stockage local) + **Gemini** (génération des plans).
+> **Stack** : **FastAPI** (backend Python) + **Vue.js 3 / Tailwind CSS** (frontend sans build Node.js) + **SQLite / SQLAlchemy** (stockage local) + **Gemini** (génération de plans de révision).
 
 ---
 
-## Badges
+## 🏷️ Badges
 
-![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?logo=fastapi&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi&logoColor=white)
 ![Vue.js](https://img.shields.io/badge/Vue.js-3-42b883?logo=vue.js&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38bdf8?logo=tailwindcss&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-38bdf8?logo=tailwindcss&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini-1.5_Flash-8E75B2?logo=google&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
 ![Licence](https://img.shields.io/badge/Licence-MIT-blue)
 
 ---
 
-## Fonctionnalités clés
+## ✨ Fonctionnalités clés
 
 | Fonctionnalité | Description |
 |---|---|
-| 🔄 **Synchronisation ADE live** | Emploi du temps du jour synchronisé avec le flux iCal de l'école (ADE Campus), auto-actualisation toutes les 60 s, badge "EN COURS" sur le créneau en cours et bouton de rafraîchissement manuel. |
-| 📝 **Gestion de devoirs** | Ajout, modification (marquer comme fait), suppression. Persistance **SQLite**. Badges d'échéance intelligents (aujourd'hui, demain, en retard, dans X jours). |
-| 🤖 **Plan de révision par IA** | Un clic → Gemini analyse les cours du jour + les devoirs et renvoie un plan de soirée **JSON strict** : conseil du soir + sessions structurées (matière, durée, objectif, technique). |
-| 🎨 **Design Bento Box** | Interface moderne : fond `slate-50`, cartes blanches `rounded-2xl`, ombres douces, accents indigo/violet, carte IA sombre et futuriste en dégradé. |
+| 📅 **Synchronisation ADE live** | Emploi du temps du jour et de la semaine synchronisé avec le flux iCal de l'école (ADE Campus). Auto-actualisation toutes les 60 s, badge "EN COURS" en temps réel et navigation de semaine en semaine. |
+| 🏷️ **Filtres & Personnalisation** | Analyse automatique du flux ADE pour détecter et filtrer les cours selon tes groupes (TP/TD/Khôlles), types d'épreuves (DS, IE, Exam) ou matières. |
+| 📋 **Gestion de devoirs (Kanban)** | Ajout, modification de statut (*À faire*, *En cours*, *Terminé*), suppression et badges d'échéance intelligents (aujourd'hui, demain, retard, J-X). Persistance SQLite. |
+| 🤖 **Plan de révision par IA** | Analyse simultanée des cours du jour et des devoirs par Google Gemini pour créer un plan de soirée structuré (format JSON strict). Mode simulation disponible sans clé API. |
+| ⚙️ **Configuration intégrée** | Saisie de l'URL ADE, de la clé Gemini et du pseudo directement depuis l'interface web (sauvegarde en base SQLite localement). |
+| 🎨 **Interface moderne & Bento Box** | Design fluide (Liquid Glass / Bento), mode d'affichage au choix (Modern Dock en bas ou Classic Sidebar) et responsive. |
 
 ---
 
-## Architecture du projet
+## 📁 Architecture du projet
 
-```
+```text
 Tablau_de_bord_projet/
 ├── backend/
-│   ├── main.py            # API FastAPI (routes + logique iCal + IA + frontend statique)
-│   ├── database.py        # Connexion SQLite + modèles (SQLAlchemy)
-│   └── requirements.txt   # Dépendances Python
+│   ├── main.py            # API FastAPI (routes + parsing ADE + intégration Gemini + SPA)
+│   ├── database.py        # Modèles SQLAlchemy (Devoir, Config) & connexion SQLite
+│   ├── requirements.txt   # Dépendances Python
+│   └── app.db             # Base de données SQLite (créée au lancement)
 ├── frontend/
-│   └── index.html         # SPA Vue.js 3 + Tailwind (via CDN)
-├── Dockerfile             # Image : Python 3.11-slim + API + frontend
-├── docker-compose.yml     # Déploiement one-command avec persistance SQLite
+│   └── index.html         # SPA Vue.js 3 + Tailwind CSS + Lucide Icons (chargés via CDN)
+├── Dockerfile             # Multi-stage image : Python 3.11-slim (API + Frontend)
+├── docker-compose.yml     # Lancement one-command avec persistance du volume app.db
+├── lancer_app.sh          # Script Bash local (venv + uvicorn + frontend + Chrome app)
 ├── .env.example           # Modèle des variables d'environnement
-├── .gitignore             # Fichiers exclus de Git (secrets, DB, caches)
+├── .gitignore             # Exclusion des secrets, caches et bases de données
 └── README.md
-```
-
-**Déroulement d'une requête :**
-
-```
-Frontend (Vue) ──fetch──▶ FastAPI ──┬─▶ ADE Campus (téléchargement .ics, parsing)
-                                    ├─▶ SQLite (devoirs, via SQLAlchemy)
-                                    └─▶ Google Gemini (prompt → plan JSON)
-```
-
----
-
-## Prérequis
-
-- **Python 3.10+**
-- Un navigateur web moderne (Chrome, Firefox, Edge)
-- Une **URL iCal ADE** de ton école (voir ci-dessous)
-- Une **clé API Gemini** gratuite (voir ci-dessous)
-
-Aucun Node.js n'est requis : Vue.js et Tailwind sont chargés par CDN.
-
----
-
-## 🚀 Déploiement Rapide avec Docker
-
-> **Méthode recommandée** : toute l'application (API FastAPI + frontend + base SQLite) est embarquée dans un seul conteneur, accessible sur un unique port.
-
-### Prérequis
-
-- **Docker** installé (version 24+) et **Docker Compose** (version 2.20+, inclus avec Docker Desktop ou installable comme plugin `docker compose`).
-- Une **URL iCal ADE** et une **clé API Gemini** *(facultatives au premier lancement : elles peuvent être saisies ensuite depuis l'onglet ⚙️ Configuration de l'application).*
-
-### Lancer l'application en une commande
-
-```bash
-docker compose up -d
-```
-
-Docker construit l'image, installe les dépendances, démarre le backend FastAPI **et** sert le frontend (servi par FastAPI lui-même) : aucune étape manuelle supplémentaire.
-
-### Accéder à l'application
-
-- **Application** : <http://localhost:8000>
-- **Documentation API** : <http://localhost:8000/docs>
-
-### Persistance des données
-
-La base SQLite `backend/app.db` est montée en volume : tes devoirs et ta configuration survivent aux redémarrages et à la recréation du conteneur.
-
-```yaml
-volumes:
-  - ./backend/app.db:/app/backend/app.db
-```
-
-### Gestion du conteneur
-
-```bash
-docker compose down            # arrête le conteneur (les données sont conservées)
-docker compose up -d --build   # reconstruit l'image après une modification du code
-docker compose logs -f app     # suit les logs du backend
-```
-
-> Les variables d'environnement du `.env` (ex. `GEMINI_API_KEY`, `ADE_ICS_URL`) peuvent être passées au conteneur via `environment:` dans `docker-compose.yml`, ou en créant un fichier `.env` à la racine du projet.
-
----
-
-## Installation et exécution
-
-### 1. Cloner / récupérer le projet
-
-```bash
-git clone <URL_DU_DEPOT> tableau-de-bord-etudiant
-cd tableau-de-bord-etudiant
-```
-
-### 2. Backend — environnement virtuel et dépendances
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate        # Windows : .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 3. Configuration — fichier `.env`
-
-Copie le modèle puis renseigne tes valeurs (toujours depuis `backend/`) :
-
-```bash
-cp ../.env.example .env
-```
-
-### 📅 Comment récupérer son lien ADE Campus
-
-1. Connecte-toi à l'application web ADE de ton établissement.
-2. Ouvre ton **emploi du temps personnel**.
-3. Cherche l'option d'export (*Export* / *Agenda* / *iCal* / icône calendrier).
-4. Copie le lien généré (il contient généralement `data=` et se termine par `.ics`) et colle-le dans `ADE_ICS_URL` :
-
-```env
-ADE_ICS_URL=https://ton-ecole.example.com/ade/ics?data=ton-lien-complet
-```
-
-### 🔑 Comment récupérer sa clé API Gemini
-
-1. Va sur <https://aistudio.google.com/apikey>.
-2. Connecte-toi avec ton compte Google.
-3. Clique sur **Create API key**, copie la clé et colle-la dans `GEMINI_API_KEY` :
-
-```env
-GEMINI_API_KEY=ta-cle-ia-ici
-```
-
-> **Sécurité :** le fichier `.env` contient des secrets. Il est **exclu de Git** via `.gitignore`. Ne le committe jamais.
-
-### 4. Lancer le backend
-
-```bash
-cd backend
-uvicorn main:app --reload --port 8000
-```
-
-- Documentation interactive de l'API : <http://localhost:8000/docs>
-- Le serveur utilise la variable `PORT` du `.env` si elle est définie.
-
-### 5. Lancer le frontend
-
-Ouvre le fichier directement :
-
-```bash
-open ../frontend/index.html        # macOS
-xdg-open ../frontend/index.html    # Linux
-```
-
-…ou sers-le via un mini serveur statique (recommandé) :
-
-```bash
-cd frontend
-python -m http.server 5173
-```
-
-Puis ouvre <http://localhost:5173>.
-
----
-
-## Endpoints de l'API
-
-| Méthode | Endpoint | Description | Corps attendu |
-|---|---|---|---|
-| `GET` | `/api/cours-du-jour` | Cours du jour depuis le flux iCal ADE | — |
-| `GET` | `/api/devoirs` | Liste des devoirs (urgents d'abord) | — |
-| `POST` | `/api/devoirs` | Créer un devoir | `{"titre", "matiere", "echeance", "fait"}` |
-| `PATCH` | `/api/devoirs/{id}` | Mettre à jour partiellement | `{"fait": true}` par ex. |
-| `DELETE` | `/api/devoirs/{id}` | Supprimer un devoir | — |
-| `POST` | `/api/plan-revision` | Générer le plan de révision IA | — |
-
-**Exemple :**
-
-```bash
-curl http://localhost:8000/api/cours-du-jour
-curl -X POST http://localhost:8000/api/devoirs \
-  -H "Content-Type: application/json" \
-  -d '{"titre": "TP Physique", "matiere": "Physique", "echeance": "2026-08-10"}'
-curl -X POST http://localhost:8000/api/plan-revision
-```
-
----
-
-
-
----
-
-## Sécurité
-
-- Les clés (`GEMINI_API_KEY`) et URLs sensibles (`ADE_ICS_URL`) ne vivent **que** dans `.env`, jamais dans Git.
-- Le CORS autorise actuellement toutes les origines pour un usage local. **En production**, restreins `allow_origins` dans `backend/main.py` à ton domaine.
-- Ajoute un système d'authentification avant toute mise en production publique.
-
----
-
-## Améliorations possibles
-
-- Authentification (JWT) et multi-utilisateurs.
-- Notifications (email / push) pour les échéances proches.
-- Historique des plans de révision et suivi de progression.
-- PWA (installable sur téléphone, notifications hors ligne).
-
----
-
-## Licence
-
-Distribué sous licence MIT. Libre de le forker, modifier et réutiliser.

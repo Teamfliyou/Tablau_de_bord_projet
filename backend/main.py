@@ -3,7 +3,7 @@ import json
 import os
 import re
 import time
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -210,9 +210,9 @@ def parser_cours(contenu: str) -> list:
 
             # Gestion des événements "journée entière" (sans horaire).
             if not isinstance(debut, datetime):
-                debut = datetime.combine(debut, time.min)
+                debut = datetime.combine(debut, datetime.min.time())
             if not isinstance(fin, datetime):
-                fin = datetime.combine(fin, time.min)
+                fin = datetime.combine(fin, datetime.min.time())
 
             # Normalisation dans le fuseau horaire configuré.
             debut = debut.astimezone(ZONE) if debut.tzinfo else debut.replace(tzinfo=ZONE)

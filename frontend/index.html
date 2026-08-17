@@ -1271,11 +1271,12 @@
           this.erreurCours = null;
           try {
             const res = await fetch(`${API_BASE}/cours-du-jour${this.filtresQuery()}`, { headers: this.entetes() });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
             const data = await res.json();
             this.cours = data.cours || [];
-          } catch (_) {
-            this.erreurCours = "Impossible de synchroniser l'emploi du temps. Lance le backend (uvicorn main:app).";
+          } catch (e) {
+            this.erreurCours = e.message || "Impossible de synchroniser l'emploi du temps.";
           } finally {
             if (!silencieux) this.chargementCours = false;
           }
@@ -1289,12 +1290,13 @@
             if (this.semaineDate) params.set('date', this.semaineDate);
             const qs = params.toString();
             const res = await fetch(`${API_BASE}/cours-semaine${qs ? `?${qs}` : ''}`, { headers: this.entetes() });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
             const data = await res.json();
             this.coursSemaine = data.cours || [];
             this.semaineInfo = { date_debut: data.date_debut || '', date_fin: data.date_fin || '' };
-          } catch (_) {
-            this.erreurSemaine = 'Impossible de charger l’emploi du temps de la semaine.';
+          } catch (e) {
+            this.erreurSemaine = e.message || "Impossible de charger l'emploi du temps de la semaine.";
           } finally {
             this.chargementSemaine = false;
           }
@@ -1325,10 +1327,11 @@
           this.erreurDevoirs = null;
           try {
             const res = await fetch(`${API_BASE}/devoirs`, { headers: this.entetes() });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
             this.devoirs = await res.json();
-          } catch (_) {
-            this.erreurDevoirs = 'Impossible de charger les devoirs depuis le serveur.';
+          } catch (e) {
+            this.erreurDevoirs = e.message || "Impossible de charger les devoirs.";
           }
         },
         async ajouterDevoir() {
@@ -1537,10 +1540,11 @@
           this.configErreur = '';
           try {
             const res = await fetch(`${API_BASE}/config`, { headers: this.entetes() });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
             this.config = await res.json();
-          } catch (_) {
-            this.configErreur = 'Impossible de charger la configuration.';
+          } catch (e) {
+            this.configErreur = e.message || "Impossible de charger la configuration.";
           } finally {
             this.chargementConfig = false;
           }

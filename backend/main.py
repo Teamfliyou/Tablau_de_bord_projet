@@ -26,9 +26,12 @@ load_dotenv()
 
 app = FastAPI()
 
+_allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "*")
+_allowed_origins = [o.strip() for o in _allowed_origins_raw.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -147,19 +150,19 @@ _CACHE_ICS = {"url": None, "contenu": None, "stocke_a": 0.0}
 TTL_CACHE_ICS = 300  # secondes (5 minutes)
 
 
-def obtenir_url_ade(user: User = None) -> str:
-    """Renvoie l'URL ADE de l'utilisateur connecté, sinon la variable d'environnement."""
+def obtenir_url_ade(user: User = None) -> Optional[str]:
+    """Renvoie l'URL ADE de l'utilisateur connecté, sinon la variable d'environnement.
+
+    Renvoie ``None`` au lieu de lever une exception quand aucune URL n'est
+    configurée, afin que les routes puissent renvoyer une réponse propre
+    (ex. tableau vide) plutôt qu'une erreur 500.
+    """
     url = None
     if user is not None and user.ade_ics_url:
         url = user.ade_ics_url
     if not url:
         url = os.getenv("ADE_ICS_URL")
-    if not url:
-        raise HTTPException(
-            status_code=500,
-            detail="Aucune URL ADE configurée : renseigne-la dans l'onglet Configuration ou ADE_ICS_URL dans .env",
-        )
-    return url
+    return url or None
 
 
 async def _telecharger_ics_async(url: str) -> str:
@@ -171,17 +174,26 @@ async def _telecharger_ics_async(url: str) -> str:
 
 
 def telecharger_ics(url: str) -> str:
-    """Télécharge le fichier .ics depuis l'URL ADE fournie (avec cache mémoire de 5 min)."""
+    """Télécharge le fichier .ics depuis l'URL ADE fournie (avec cache mémoire de 5 min).
+
+    Si le téléchargement échoue (timeout, 502, …), le contenu en cache s'il
+    existe encore est renvoyé au lieu de lever une exception — cela rend
+    l'application bien plus résiliente face aux problèmes temporaires du
+    serveur ADE.
+    """
     maintenant = time.monotonic()
     if _CACHE_ICS["url"] == url and (maintenant - _CACHE_ICS["stocke_a"]) < TTL_CACHE_ICS:
         return _CACHE_ICS["contenu"]
 
     try:
         contenu = asyncio.run(_telecharger_ics_async(url))
-    except httpx.HTTPError as exc:
+    except httpx.HTTPError:
+        # Si le téléchargement échoue mais qu'on a un cache valide, on l'utilise.
+        if _CACHE_ICS["url"] == url and _CACHE_ICS["contenu"]:
+            return _CACHE_ICS["contenu"]
         raise HTTPException(
             status_code=502,
-            detail=f"Impossible de télécharger le flux ADE ({url}) : {exc}",
+            detail="Impossible de télécharger le flux ADE et aucun cache n'est disponible.",
         )
 
     # On ne met en cache que les téléchargements réussis : un échec
@@ -369,8 +381,14 @@ def appliquer_filtres(cours: list, groupes: list = None, types: list = None, mat
 
 
 def charger_cours(user: User = None) -> list:
-    """Télécharge et parse tous les cours du flux ADE de l'utilisateur."""
+    """Télécharge et parse tous les cours du flux ADE de l'utilisateur.
+
+    Si aucune URL ADE n'est configurée, renvoie une liste vide au lieu de
+    lever une exception — le frontend affichera alors « Aucun cours ».
+    """
     url = obtenir_url_ade(user)
+    if not url:
+        return []
     return parser_cours(telecharger_ics(url))
 
 

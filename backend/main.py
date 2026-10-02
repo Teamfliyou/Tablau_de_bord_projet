@@ -1,30 +1,54 @@
 import asyncio
+import ipaddress
 import json
+import logging
 import os
 import re
+import secrets
+import socket
 import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import httpx
 import jwt
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query
+
+# Charger .env AVANT l'import de la couche base de données.
+load_dotenv()
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from ics import Calendar
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
-from database import Devoir, SessionLocal, User
+from backend.database import Devoir, SessionLocal, User
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(title="Tableau de bord étudiant", version="2.0.0")
+
+
+@app.middleware("http")
+async def ajouter_entetes_securite(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
+@app.get("/api/health")
+def healthcheck():
+    return {"status": "ok"}
+
 
 _allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "*")
 _allowed_origins = [o.strip() for o in _allowed_origins_raw.split(",") if o.strip()]
@@ -50,7 +74,13 @@ def get_db():
 # ---------------------------------------------------------------------------
 #  Authentification : mots de passe (bcrypt) & tokens JWT
 # ---------------------------------------------------------------------------
-SECRET_KEY = os.getenv("SECRET_KEY", "cle-de-developpement-a-changer-en-production")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_urlsafe(48)
+    logger.warning(
+        "SECRET_KEY n'est pas définie : une clé temporaire aléatoire est utilisée. "
+        "Les sessions seront invalidées au prochain redémarrage. Configure SECRET_KEY en production."
+    )
 JWT_ALGORITHME = "HS256"
 JWT_EXPIRATION_MINUTES = 60 * 24  # 24 heures
 
@@ -103,7 +133,7 @@ def profil_utilisateur(user: User) -> dict:
         "email": user.email,
         "username": user.username or user.email.split("@")[0],
         "ade_url": user.ade_ics_url or "",
-        "gemini_key": user.gemini_api_key or "",
+        "gemini_configured": bool(user.gemini_api_key),
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
 
@@ -112,32 +142,49 @@ def profil_utilisateur(user: User) -> dict:
 #  Schémas
 # ---------------------------------------------------------------------------
 class UtilisateurInscription(BaseModel):
-    email: str
-    password: str
-    username: str = ""
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=8, max_length=128)
+    username: str = Field(default="", max_length=80)
 
 
 class UtilisateurConnexion(BaseModel):
-    email: str
-    password: str
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=128)
 
 
 class DevoirCreate(BaseModel):
-    titre: str
-    matiere: str = ""
+    titre: str = Field(min_length=1, max_length=200)
+    matiere: str = Field(default="", max_length=120)
     echeance: str = ""
-    type: str = "devoir"
-    statut: str = "a_faire"
+    type: Literal["devoir", "ie", "ds", "exam"] = "devoir"
+    statut: Literal["a_faire", "en_cours", "termine"] = "a_faire"
+
+    @field_validator("titre", "matiere")
+    @classmethod
+    def nettoyer_texte(cls, valeur: str) -> str:
+        return valeur.strip()
+
+    @field_validator("echeance")
+    @classmethod
+    def valider_echeance(cls, valeur: str) -> str:
+        valeur = valeur.strip()
+        if valeur:
+            try:
+                date.fromisoformat(valeur)
+            except ValueError as exc:
+                raise ValueError("L'échéance doit être au format YYYY-MM-DD") from exc
+        return valeur
 
 
 class DevoirUpdate(BaseModel):
-    statut: Optional[str] = None
+    statut: Optional[Literal["a_faire", "en_cours", "termine"]] = None
 
 
 class ConfigUpdate(BaseModel):
-    username: str = ""
-    ade_url: str = ""
-    gemini_key: str = ""
+    username: str = Field(default="", max_length=80)
+    ade_url: str = Field(default="", max_length=2048)
+    gemini_key: Optional[str] = Field(default=None, max_length=512)
+    remove_gemini_key: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -165,10 +212,63 @@ def obtenir_url_ade(user: User = None) -> Optional[str]:
     return url or None
 
 
+def _adresse_interdite(adresse: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(adresse)
+    except ValueError:
+        return True
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+def valider_url_ade(url: str) -> str:
+    """Valide une URL ADE distante et bloque les cibles réseau locales/privées."""
+    url = (url or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="Lien ADE vide.")
+
+    parsed = urlparse(url)
+    if parsed.scheme.lower() != "https" or not parsed.hostname:
+        raise HTTPException(
+            status_code=400,
+            detail="Le lien ADE doit être une URL HTTPS valide.",
+        )
+
+    hostname = parsed.hostname.lower().rstrip(".")
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        raise HTTPException(status_code=400, detail="Hôte ADE non autorisé.")
+
+    allowed_hosts_raw = os.getenv("ADE_ALLOWED_HOSTS", "").strip()
+    if allowed_hosts_raw:
+        allowed_hosts = [h.strip().lower().lstrip(".") for h in allowed_hosts_raw.split(",") if h.strip()]
+        if not any(hostname == h or hostname.endswith("." + h) for h in allowed_hosts):
+            raise HTTPException(status_code=400, detail="Ce domaine ADE n'est pas autorisé.")
+
+    try:
+        infos = socket.getaddrinfo(hostname, parsed.port or 443, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise HTTPException(status_code=400, detail="Le domaine ADE est introuvable.") from exc
+
+    adresses = {info[4][0] for info in infos}
+    if not adresses or any(_adresse_interdite(adresse) for adresse in adresses):
+        raise HTTPException(status_code=400, detail="Adresse réseau ADE non autorisée.")
+
+    return url
+
+
 async def _telecharger_ics_async(url: str) -> str:
-    """Téléchargement asynchrone du flux .ics via httpx.AsyncClient."""
-    async with httpx.AsyncClient(timeout=20) as client:
+    """Téléchargement asynchrone du flux .ics via httpx, sans redirection."""
+    url = valider_url_ade(url)
+    async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
         reponse = await client.get(url)
+        if 300 <= reponse.status_code < 400:
+            raise HTTPException(status_code=502, detail="Les redirections du flux ADE ne sont pas autorisées.")
         reponse.raise_for_status()
         return reponse.text
 
@@ -187,6 +287,8 @@ def telecharger_ics(url: str) -> str:
 
     try:
         contenu = asyncio.run(_telecharger_ics_async(url))
+    except HTTPException:
+        raise
     except httpx.HTTPError:
         # Si le téléchargement échoue mais qu'on a un cache valide, on l'utilise.
         if _CACHE_ICS["url"] == url and _CACHE_ICS["contenu"]:
@@ -395,7 +497,7 @@ def charger_cours(user: User = None) -> list:
 def charger_cours_du_jour(user: User = None, jour: date = None) -> dict:
     """Cours d'une journée précise (aujourd'hui par défaut) filtrés depuis le flux ADE."""
     tous_les_cours = charger_cours(user)
-    jour = jour or date.today()
+    jour = jour or datetime.now(ZONE).date()
     cours = [c for c in tous_les_cours if c["date"] == jour.isoformat()]
     return {"date": jour.isoformat(), "nb_cours": len(cours), "cours": cours}
 
@@ -403,7 +505,7 @@ def charger_cours_du_jour(user: User = None, jour: date = None) -> dict:
 def charger_cours_semaine(user: User = None, ref: date = None) -> dict:
     """Cours du lundi au vendredi de la semaine contenant `ref` (aujourd'hui par défaut)."""
     tous_les_cours = charger_cours(user)
-    ref = ref or date.today()
+    ref = ref or datetime.now(ZONE).date()
     lundi = ref - timedelta(days=ref.weekday())
     vendredi = lundi + timedelta(days=4)
     cours = [
@@ -528,6 +630,8 @@ def importer_devoirs(
     user: User = Depends(obtenir_utilisateur_actuel),
 ):
     """Importe une liste de devoirs au format JSON et retourne le nombre ajouté."""
+    if len(devoirs) > 500:
+        raise HTTPException(status_code=400, detail="Import limité à 500 devoirs par fichier.")
     importes = 0
     for item in devoirs:
         db.add(
@@ -596,17 +700,26 @@ def get_config(db: Session = Depends(get_db), user: User = Depends(obtenir_utili
     return {
         "username": user.username or user.email.split("@")[0],
         "ade_url": user.ade_ics_url or "",
-        "gemini_key": user.gemini_api_key or "",
+        "gemini_key": "",
+        "gemini_configured": bool(user.gemini_api_key),
     }
 
 
 @app.post("/api/config")
 def save_config(data: ConfigUpdate, db: Session = Depends(get_db), user: User = Depends(obtenir_utilisateur_actuel)):
     user.username = data.username.strip()
-    user.ade_ics_url = data.ade_url.strip()
-    user.gemini_api_key = data.gemini_key.strip()
+    ade_url = data.ade_url.strip()
+    if ade_url:
+        valider_url_ade(ade_url)
+    user.ade_ics_url = ade_url
+
+    if data.remove_gemini_key:
+        user.gemini_api_key = ""
+    elif data.gemini_key is not None and data.gemini_key.strip():
+        user.gemini_api_key = data.gemini_key.strip()
+
     db.commit()
-    return {"detail": "Configuration enregistrée"}
+    return {"detail": "Configuration enregistrée", "gemini_configured": bool(user.gemini_api_key)}
 
 
 @app.get("/api/config/categories")

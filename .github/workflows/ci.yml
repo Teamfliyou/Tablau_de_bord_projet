@@ -9,7 +9,7 @@ jobs:
   backend-smoke:
     runs-on: ubuntu-latest
     env:
-      SECRET_KEY: ci-secret-key-only
+      SECRET_KEY: ci-secret-key-only-32-bytes-minimum-2026
       DATABASE_URL: sqlite:////tmp/tableau-bord-ci.db
     steps:
       - uses: actions/checkout@v4

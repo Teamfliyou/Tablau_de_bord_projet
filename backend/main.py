@@ -854,14 +854,19 @@ def generer_plan_revision(
 
     if api_key:
         try:
-            import google.generativeai as genai
+            from google import genai
+            from google.genai import types
 
-            genai.configure(api_key=api_key)
-            modele = genai.GenerativeModel(
-                os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
-                generation_config={"response_mime_type": "application/json", "temperature": 0.7},
+            client = genai.Client(api_key=api_key)
+            reponse = client.models.generate_content(
+                model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.7,
+                ),
             )
-            texte = modele.generate_content(prompt).text.strip()
+            texte = (reponse.text or "").strip()
             texte = texte.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
             return json.loads(texte)
         except Exception:

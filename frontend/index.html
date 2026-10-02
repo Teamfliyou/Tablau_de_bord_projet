@@ -1009,8 +1009,10 @@
 
   <!-- ==================== APPLICATION VUE ==================== -->
   <script>
-    const isDevSeparatePort = window.location.port === '8080';
-    const API_BASE = isDevSeparatePort ? 'http://localhost:8000/api' : '/api';
+    const isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+      && window.location.port
+      && window.location.port !== '8000';
+    const API_BASE = isLocalDev ? 'http://localhost:8000/api' : '/api';
     const { createApp } = Vue;
 
     const ICONS = {
@@ -1074,7 +1076,7 @@
           erreurPlan: null,
           planCopie: false,
           // Configuration
-          config: { username: '', ade_url: '', gemini_key: '' },
+          config: { username: '', ade_url: '', gemini_key: '', gemini_configured: false },
           chargementConfig: false,
           configEnregistrement: false,
           configMessage: '',
@@ -1197,7 +1199,7 @@
           this.cours = [];
           this.coursSemaine = [];
           this.plan = null;
-          this.config = { username: '', ade_url: '', gemini_key: '' };
+          this.config = { username: '', ade_url: '', gemini_key: '', gemini_configured: false };
         },
         initialiserDonnees() {
           if (!this.connecte) return;
@@ -1214,11 +1216,10 @@
           try { ignore = sessionStorage.getItem('onboarding_ignorer') === '1'; } catch (_) { /* indisponible */ }
           if (force) ignore = false;
           const manqueAde = !this.utilisateur.ade_url;
-          const manqueCle = !this.utilisateur.gemini_key;
-          if (!ignore && (manqueAde || manqueCle)) {
+          if (!ignore && manqueAde) {
             this.onboarding = {
               ade_url: this.utilisateur.ade_url || '',
-              gemini_key: this.utilisateur.gemini_key || '',
+              gemini_key: '',
             };
             this.onboardingErreur = '';
             this.onboardingVisible = true;
@@ -1240,7 +1241,7 @@
             });
             if (!res.ok) throw new Error(await this.extraitErreur(res));
             this.utilisateur.ade_url = this.onboarding.ade_url.trim();
-            this.utilisateur.gemini_key = this.onboarding.gemini_key.trim();
+            this.utilisateur.gemini_configured = Boolean(this.onboarding.gemini_key.trim());
             this.onboardingVisible = false;
             await this.chargerConfig();
             this.chargerCours();
@@ -1349,7 +1350,8 @@
                 statut: this.nouveauDevoir.statut,
               }),
             });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
             this.nouveauDevoir = { titre: '', matiere: '', echeance: '', type: 'devoir', statut: 'a_faire' };
             await this.chargerDevoirs();
           } catch (_) {
@@ -1365,7 +1367,8 @@
               headers: this.entetes(),
               body: JSON.stringify({ titre, statut: 'a_faire' }),
             });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
             this.nouveauDevoirRapide = '';
             await this.chargerDevoirs();
           } catch (_) {
@@ -1379,7 +1382,8 @@
               headers: this.entetes(),
               body: JSON.stringify({ statut }),
             });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
             d.statut = statut;
           } catch (_) {
             this.erreurDevoirs = 'Impossible de mettre à jour le statut du devoir.';
@@ -1398,7 +1402,8 @@
         async supprimerDevoir(d) {
           try {
             const res = await fetch(`${API_BASE}/devoirs/${d.id}`, { method: 'DELETE', headers: this.entetes() });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
             await this.chargerDevoirs();
           } catch (_) {
             this.erreurDevoirs = 'Impossible de supprimer le devoir.';
@@ -1407,7 +1412,8 @@
         async exporterDevoirs() {
           try {
             const res = await fetch(`${API_BASE}/devoirs/export`, { headers: this.entetes() });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
             const devoirs = await res.json();
             const blob = new Blob([JSON.stringify(devoirs, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -1438,10 +1444,11 @@
               headers: this.entetes(),
               body: JSON.stringify(devoirs),
             });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
             await this.chargerDevoirs();
-          } catch (_) {
-            this.erreurDevoirs = 'Impossible d\'importer les devoirs : fichier JSON invalide.';
+          } catch (e) {
+            this.erreurDevoirs = e.message || 'Impossible d\'importer les devoirs : fichier JSON invalide.';
           }
         },
         devoirsParStatut(statut) {
@@ -1505,6 +1512,7 @@
           this.erreurPlan = null;
           try {
             const res = await fetch(`${API_BASE}/plan-revision${this.filtresQuery()}`, { method: 'POST', headers: this.entetes() });
+            if (res.status === 401) { this.seDeconnecter(); return; }
             if (!res.ok) throw new Error(await this.extraitErreur(res));
             this.plan = await res.json();
           } catch (e) {
@@ -1559,10 +1567,18 @@
               headers: this.entetes(),
               body: JSON.stringify(this.config),
             });
-            if (!res.ok) throw new Error();
+            if (res.status === 401) { this.seDeconnecter(); return; }
+            if (!res.ok) throw new Error(await this.extraitErreur(res));
+            const data = await res.json();
+            this.config.gemini_configured = Boolean(data.gemini_configured);
+            this.config.gemini_key = '';
+            if (this.utilisateur) {
+              this.utilisateur.ade_url = this.config.ade_url;
+              this.utilisateur.gemini_configured = this.config.gemini_configured;
+            }
             this.configMessage = 'Configuration enregistrée avec succès.';
-          } catch (_) {
-            this.configErreur = 'Impossible d’enregistrer la configuration.';
+          } catch (e) {
+            this.configErreur = e.message || 'Impossible d’enregistrer la configuration.';
           } finally {
             this.configEnregistrement = false;
           }
@@ -1651,6 +1667,7 @@
           this.messageCategories = '';
           try {
             const res = await fetch(`${API_BASE}/config/categories`, { headers: this.entetes() });
+            if (res.status === 401) { this.seDeconnecter(); return; }
             if (!res.ok) throw new Error(await this.extraitErreur(res));
             const data = await res.json();
             this.categorisation = {

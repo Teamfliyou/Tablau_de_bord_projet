@@ -27,7 +27,7 @@ jobs:
       - name: Validate Alembic migration
         run: alembic upgrade head --sql > /tmp/migration.sql
       - name: Run tests
-        run: pytest -q
+        run: python -m pytest -q
       - name: Import application
         run: python -c "from backend.main import app; assert app is not None"
       - name: Start API and check health

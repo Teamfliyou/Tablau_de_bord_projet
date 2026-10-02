@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "improve/**"]
+  pull_request:
+
+jobs:
+  backend-smoke:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ci-secret-key-only
+      DATABASE_URL: sqlite:////tmp/tableau-bord-ci.db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Compile Python
+        run: python -m compileall -q backend
+      - name: Import application
+        run: python -c "from backend.main import app; assert app is not None"
+      - name: Start API and check health
+        run: |
+          uvicorn backend.main:app --host 127.0.0.1 --port 8000 &
+          PID=$!
+          trap "kill $PID" EXIT
+          python - <<'PY'
+          import time
+          import urllib.request
+
+          for _ in range(20):
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=2) as response:
+                      assert response.status == 200
+                      break
+              except Exception:
+                  time.sleep(0.5)
+          else:
+              raise SystemExit("API healthcheck failed")
+          PY

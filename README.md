@@ -12,7 +12,7 @@ Dashboard personnel **Full-Stack** pour visualiser son emploi du temps en temps 
 ![Vue.js](https://img.shields.io/badge/Vue.js-3-42b883?logo=vue.js&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-38bdf8?logo=tailwindcss&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-1.5_Flash-8E75B2?logo=google&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-3.8_Flash-8E75B2?logo=google&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
 ![Licence](https://img.shields.io/badge/Licence-MIT-blue)
@@ -157,7 +157,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-*(Les dépendances installées sont : `fastapi`, `uvicorn`, `sqlalchemy`, `ics`, `requests`, `python-dotenv`, `google-generativeai`, `pydantic`)*.
+*(Les dépendances installées sont : `fastapi`, `uvicorn`, `sqlalchemy`, `ics`, `httpx`, `python-dotenv`, `google-genai`, `pydantic`, `pyjwt`, `passlib`)*.
 
 ##### 3. Créer le fichier de configuration `.env`
 À la racine du projet ou dans `backend/` :
@@ -167,7 +167,7 @@ cp ../.env.example .env
 
 ##### 4. Démarrer le serveur backend
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 L'application web est directement accessible sur **[http://localhost:8000](http://localhost:8000)** (FastAPI sert directement le frontend HTML/Vue.js).
@@ -182,11 +182,17 @@ Vous pouvez configurer l'application soit via les paramètres de l'onglet **Conf
 # URL d'export iCal de votre emploi du temps ADE
 ADE_ICS_URL=[https://votre-ecole.example.com/ade/ics?data=votre-lien-ics](https://votre-ecole.example.com/ade/ics?data=votre-lien-ics)
 
-# Clé API Google Gemini (Obtenable gratuitement sur [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey))
+# Secret utilisé pour signer les JWT (obligatoire en production)
+SECRET_KEY=une_longue_valeur_aleatoire_et_privee
+
+# Clé API Google Gemini (facultative)
 GEMINI_API_KEY=votre_cle_gemini_ici
 
-# Modèle Gemini utilisé (Facultatif, par défaut gemini-1.5-flash)
-GEMINI_MODEL=gemini-1.5-flash
+# Modèle Gemini utilisé (facultatif)
+GEMINI_MODEL=gemini-3.8-flash
+
+# Optionnel : domaines ADE autorisés, séparés par des virgules
+ADE_ALLOWED_HOSTS=
 
 # Fuseau horaire (Facultatif, par défaut Europe/Paris)
 APP_TIMEZONE=Europe/Paris
@@ -247,7 +253,7 @@ Tablau_de_bord_projet/
 ## 🐳 Commandes Docker utiles
 
 ```bash
-docker compose down            # Arrête le conteneur (les données restent sauvegardées dans backend/app.db)
+docker compose down            # Arrête le conteneur (la base SQLite reste dans le volume Docker app-data)
 docker compose up -d --build   # Reconstruit l'image après une modification du code
 docker compose logs -f app     # Affiche les logs du backend en temps réel
 ```

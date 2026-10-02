@@ -29,6 +29,7 @@ def test_ade_detection_helpers():
 def test_parse_and_filter_ics():
     contenu = """BEGIN:VCALENDAR
 VERSION:2.0
+PRODID:-//Tableau de bord//Tests//FR
 BEGIN:VEVENT
 UID:test-1
 DTSTAMP:20261001T080000Z

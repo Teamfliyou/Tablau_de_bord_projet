@@ -2,9 +2,12 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, create_engine, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
 # Surchargeable via l'environnement (ex. Docker ou PaaS Render) ; sinon base SQLite locale.
 DEFAULT_DB_PATH = (Path(__file__).resolve().parent / "app.db").as_posix()
@@ -23,7 +26,8 @@ if DATABASE_URL.startswith("sqlite"):
 
 engine = create_engine(DATABASE_URL, **_engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 
 class User(Base):

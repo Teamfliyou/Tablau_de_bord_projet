@@ -208,17 +208,24 @@ PORT=8000
 ```text
 Tablau_de_bord_projet/
 ├── backend/
-│   ├── main.py            # API FastAPI (routes + parsing ADE + intégration Gemini + SPA)
-│   ├── database.py        # Modèles SQLAlchemy (Devoir, Config) & connexion SQLite
-│   ├── requirements.txt   # Dépendances Python
-│   └── app.db             # Base de données SQLite (créée au lancement)
+│   ├── main.py             # Création et assemblage de l'application FastAPI
+│   ├── settings.py         # Variables d'environnement et paramètres globaux
+│   ├── dependencies.py     # Authentification JWT et dépendances FastAPI
+│   ├── schemas.py          # Schémas Pydantic et validation des entrées
+│   ├── database.py         # Modèles et connexion SQLAlchemy
+│   ├── routers/            # Routes auth, cours, devoirs, configuration et IA
+│   ├── services/           # Parsing ADE/cache et planification IA
+│   ├── requirements.txt    # Dépendances d'exécution
+│   └── requirements-dev.txt# Dépendances de développement/tests
 ├── frontend/
-│   └── index.html         # SPA Vue.js 3 + Tailwind CSS + Lucide Icons (chargés via CDN)
-├── Dockerfile             # Multi-stage image : Python 3.11-slim (API + Frontend)
-├── docker-compose.yml     # Lancement one-command avec persistance du volume app.db
-├── lancer_app.sh          # Script Bash local (venv + uvicorn + frontend + Chrome app)
-├── .env.example           # Modèle des variables d'environnement
-├── .gitignore             # Exclusion des secrets, caches et bases de données
+│   └── index.html          # SPA Vue.js 3 + Tailwind CSS
+├── migrations/             # Migrations de schéma Alembic
+├── tests/                  # Tests automatisés Pytest
+├── .github/workflows/      # CI GitHub Actions
+├── Dockerfile
+├── docker-compose.yml
+├── alembic.ini
+├── lancer_app.sh
 └── README.md
 ```
 
@@ -250,6 +257,34 @@ Tablau_de_bord_projet/
 
 ---
 
+## 🧪 Tests et migrations
+
+Pour installer les dépendances de développement et lancer tous les tests :
+
+```bash
+pip install -r backend/requirements-dev.txt
+pytest -q
+```
+
+La CI GitHub exécute automatiquement la compilation Python, les tests, la validation Alembic et un démarrage réel de l'API avec healthcheck.
+
+Pour une **base existante créée avant Alembic**, marquez d'abord le schéma actuel comme version initiale :
+
+```bash
+alembic stamp 20261002_0001
+```
+
+Pour les futures évolutions du schéma :
+
+```bash
+alembic revision --autogenerate -m "description"
+alembic upgrade head
+```
+
+Pour une nouvelle base gérée entièrement par migrations, exécutez `alembic upgrade head` avant le premier démarrage.
+
+---
+
 ## 🐳 Commandes Docker utiles
 
 ```bash
@@ -263,7 +298,7 @@ docker compose logs -f app     # Affiche les logs du backend en temps réel
 ## 🔒 Sécurité
 
 - Les clés d'API et URLs ADE sont stockées localement dans la base SQLite ou dans le fichier `.env` non versionné (`.gitignore`).
-- En production publique, ajustez le Middleware CORS (`allow_origins`) dans `backend/main.py`.
+- En production publique, configurez `ALLOWED_ORIGINS` dans l'environnement plutôt que de laisser `*`.
 
 ---
 

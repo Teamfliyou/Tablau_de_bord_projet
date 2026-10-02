@@ -10,6 +10,17 @@ services:
     container_name: tableau-de-bord
     ports:
       - "8000:8000"        # Application + API : http://localhost:8000
+    environment:
+      DATABASE_URL: sqlite:////data/app.db
     volumes:
-      - ./backend/app.db:/app/backend/app.db   # Persistance SQLite
+      - app-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
+
+volumes:
+  app-data:

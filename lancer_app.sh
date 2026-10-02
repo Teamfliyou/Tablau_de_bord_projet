@@ -37,9 +37,8 @@ if curl -s -o /dev/null -m 1 "http://localhost:$PORT_BACKEND/"; then
   echo "  ✓ uvicorn déjà lancé sur le port $PORT_BACKEND"
 else
   echo "  Démarrage de uvicorn en arrière-plan…"
-  cd "$BACKEND_DIR"
-  setsid nohup uvicorn main:app --host 0.0.0.0 --port "$PORT_BACKEND" > "$BACKEND_DIR/uvicorn.log" 2>&1 < /dev/null &
   cd "$PROJET_DIR"
+  setsid nohup uvicorn backend.main:app --host 0.0.0.0 --port "$PORT_BACKEND" > "$BACKEND_DIR/uvicorn.log" 2>&1 < /dev/null &
   sleep 2
   if curl -s -o /dev/null -m 1 "http://localhost:$PORT_BACKEND/"; then
     echo "  ✓ Backend lancé sur http://localhost:$PORT_BACKEND"

@@ -1,12 +1,14 @@
 import os
 from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
 # Surchargeable via l'environnement (ex. Docker ou PaaS Render) ; sinon base SQLite locale.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+DEFAULT_DB_PATH = (Path(__file__).resolve().parent / "app.db").as_posix()
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH}")
 
 # Render fournit souvent une URL au format historique postgres://
 # (non reconnu par psycopg2) : on la normalise en postgresql://.

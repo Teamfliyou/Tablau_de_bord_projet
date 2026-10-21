@@ -20,6 +20,30 @@ pub struct Devoir {
     #[serde(rename = "type")]
     pub type_: String,
     pub statut: String,
+    #[serde(default)]
+    pub tags: Vec<Tag>,
+}
+
+/// Tag personnalisé (réutilisable sur plusieurs devoirs).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Tag {
+    pub id: i64,
+    pub nom: String,
+    pub couleur: String,
+}
+
+/// Tag sans identifiant : création, modification, import / export JSON.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct TagEntree {
+    pub nom: String,
+    #[serde(default = "couleur_tag_defaut")]
+    pub couleur: String,
+}
+
+pub const TAGS_PAR_DEVOIR_MAX: usize = 20;
+
+fn couleur_tag_defaut() -> String {
+    "#6366f1".into()
 }
 
 /// Données d'un devoir à créer / importer (champs absents = valeurs par défaut).
@@ -34,6 +58,9 @@ pub struct DevoirEntree {
     pub type_: String,
     #[serde(default = "statut_defaut")]
     pub statut: String,
+    /// Absent dans les anciens fichiers : liste vide, export identique à l'ancien format.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<TagEntree>,
 }
 
 fn type_defaut() -> String {
@@ -65,6 +92,30 @@ impl DevoirEntree {
         valider_echeance(&self.echeance)?;
         valider_type(&self.type_)?;
         valider_statut(&self.statut)?;
+        if self.tags.len() > TAGS_PAR_DEVOIR_MAX {
+            return Err("Un devoir ne peut pas avoir plus de 20 tags.".into());
+        }
+        self.tags = self
+            .tags
+            .into_iter()
+            .map(TagEntree::valider)
+            .collect::<Result<_, _>>()?;
+        Ok(self)
+    }
+}
+
+impl TagEntree {
+    /// Nettoie et valide un tag (nom 1 à 30 caractères, couleur `#RRGGBB`).
+    pub fn valider(mut self) -> Result<Self, String> {
+        self.nom = self.nom.trim().to_string();
+        self.couleur = self.couleur.to_ascii_lowercase();
+        if self.nom.is_empty() || self.nom.chars().count() > 30 {
+            return Err("Le nom d'un tag doit contenir entre 1 et 30 caractères.".into());
+        }
+        let hex = self.couleur.strip_prefix('#').unwrap_or("");
+        if hex.len() != 6 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err("La couleur d'un tag doit être au format #RRGGBB.".into());
+        }
         Ok(self)
     }
 }

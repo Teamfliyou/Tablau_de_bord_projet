@@ -587,7 +587,7 @@ async fn migration_d_une_base_python_existante() {
     }
 
     let store = Store::ouvrir(&chemin).expect("migration");
-    assert_eq!(store.version().expect("version"), 2);
+    assert_eq!(store.version().expect("version"), 3);
     // Une sauvegarde de l'ancienne base a été créée avant toute modification.
     let sauvegardes: Vec<_> = std::fs::read_dir(dossier.path().join("sauvegardes"))
         .expect("dossier de sauvegardes")
@@ -615,7 +615,7 @@ async fn migration_d_une_base_python_existante() {
     // Rouvrir la base ne refait pas de migration ni de nouvelle sauvegarde.
     drop(app);
     let store = Store::ouvrir(&chemin).expect("réouverture");
-    assert_eq!(store.version().expect("version"), 2);
+    assert_eq!(store.version().expect("version"), 3);
     assert_eq!(
         std::fs::read_dir(dossier.path().join("sauvegardes"))
             .expect("dossier")

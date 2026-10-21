@@ -6,7 +6,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::state::{verifier_hote, AppState};
 use crate::store::{MajConfig, Utilisateur};
 use axum::extract::{FromRequest, FromRequestParts, State};
-use axum::routing::{get, patch, post};
+use axum::routing::{get, patch, post, put};
 use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -49,6 +49,12 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/api/devoirs/{id}",
             patch(modifier_devoir).delete(supprimer_devoir),
+        )
+        .route("/api/devoirs/{id}/tags", put(definir_tags_devoir))
+        .route("/api/tags", get(lister_tags).post(creer_tag))
+        .route(
+            "/api/tags/{id}",
+            put(modifier_tag).delete(supprimer_tag),
         )
         .route("/api/plan-revision", post(plan_revision))
 }
@@ -389,6 +395,50 @@ async fn supprimer_devoir(
     Ok(Json(json!({ "detail": "Devoir supprimé" })))
 }
 
+async fn definir_tags_devoir(
+    State(s): State<AppState>,
+    UtilisateurAuth(u): UtilisateurAuth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(tags): ApiJson<Vec<i64>>,
+) -> ApiResult<Json<tdb_shared::Devoir>> {
+    Ok(Json(s.store.definir_tags_devoir(u.id, id, tags)?))
+}
+
+// ------------------------------------------------------------------------ Tags
+
+async fn lister_tags(
+    State(s): State<AppState>,
+    UtilisateurAuth(u): UtilisateurAuth,
+) -> ApiResult<Json<Vec<tdb_shared::Tag>>> {
+    Ok(Json(s.store.lister_tags(u.id)?))
+}
+
+async fn creer_tag(
+    State(s): State<AppState>,
+    UtilisateurAuth(u): UtilisateurAuth,
+    ApiJson(t): ApiJson<tdb_shared::TagEntree>,
+) -> ApiResult<Json<tdb_shared::Tag>> {
+    Ok(Json(s.store.creer_tag(u.id, t)?))
+}
+
+async fn modifier_tag(
+    State(s): State<AppState>,
+    UtilisateurAuth(u): UtilisateurAuth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(t): ApiJson<tdb_shared::TagEntree>,
+) -> ApiResult<Json<tdb_shared::Tag>> {
+    Ok(Json(s.store.modifier_tag(u.id, id, t)?))
+}
+
+async fn supprimer_tag(
+    State(s): State<AppState>,
+    UtilisateurAuth(u): UtilisateurAuth,
+    ApiPath(id): ApiPath<i64>,
+) -> ApiResult<Json<Value>> {
+    s.store.supprimer_tag(u.id, id)?;
+    Ok(Json(json!({ "detail": "Tag supprimé" })))
+}
+
 async fn exporter_devoirs(
     State(s): State<AppState>,
     UtilisateurAuth(u): UtilisateurAuth,
@@ -403,6 +453,14 @@ async fn exporter_devoirs(
             echeance: d.echeance,
             type_: d.type_,
             statut: d.statut,
+            tags: d
+                .tags
+                .into_iter()
+                .map(|t| tdb_shared::TagEntree {
+                    nom: t.nom,
+                    couleur: t.couleur,
+                })
+                .collect(),
         })
         .collect();
     Ok(Json(liste))

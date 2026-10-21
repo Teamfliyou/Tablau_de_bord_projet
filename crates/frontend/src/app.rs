@@ -276,6 +276,27 @@ fn EditionDevoir(devoir: Devoir) -> impl IntoView {
     let en_cours = RwSignal::new(false);
     let fermer = move || etat.edition.set(None);
 
+    // Tags du devoir : chaque clic enregistre immédiatement l'ensemble choisi.
+    let tags_choisis = RwSignal::new(devoir.tags.iter().map(|t| t.id).collect::<Vec<i64>>());
+    let basculer = move |tag_id: i64| {
+        let mut ids = tags_choisis.get_untracked();
+        match ids.iter().position(|x| *x == tag_id) {
+            Some(i) => {
+                ids.remove(i);
+            }
+            None => ids.push(tag_id),
+        }
+        spawn_local(async move {
+            match api::definir_tags_devoir(id, &ids).await {
+                Ok(_) => {
+                    tags_choisis.set(ids);
+                    etat.charger_devoirs_async().await;
+                }
+                Err(e) => erreur.set(etat.message(e)),
+            }
+        });
+    };
+
     let enregistrer = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
         spawn_local(async move {
@@ -330,6 +351,29 @@ fn EditionDevoir(devoir: Devoir) -> impl IntoView {
                             <select class=champ prop:value=move || statut.get() on:change=move |ev| statut.set(event_target_value(&ev))>
                                 {COLONNES.iter().map(|(id, l, _)| view! { <option value=*id>{*l}</option> }).collect_view()}
                             </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">"Tags"</label>
+                        <div class="flex flex-wrap gap-2">
+                            {move || {
+                                let liste = etat.tags.get();
+                                if liste.is_empty() {
+                                    return view! { <p class="text-xs text-slate-400">"Aucun tag : crée-les avec « Gérer les tags » dans le Kanban."</p> }.into_any();
+                                }
+                                liste.into_iter().map(|t| {
+                                    let tid = t.id;
+                                    let couleur = t.couleur.clone();
+                                    view! {
+                                        <button type="button"
+                                            class=move || format!("inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border transition {}", if tags_choisis.get().contains(&tid) { "text-white border-transparent" } else { "bg-white/60 text-slate-600 border-slate-200" })
+                                            style=move || if tags_choisis.get().contains(&tid) { format!("background-color:{couleur}") } else { String::new() }
+                                            on:click=move |_| basculer(tid)>
+                                            {t.nom.clone()}
+                                        </button>
+                                    }
+                                }).collect_view().into_any()
+                            }}
                         </div>
                     </div>
                     {move || { let m = erreur.get(); (!m.is_empty()).then(|| view! { <p class="rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-3.5">{m}</p> }) }}

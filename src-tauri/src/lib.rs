@@ -10,7 +10,8 @@ use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tdb_core::ade::{Categories, Filtres};
 use tdb_core::db::{
-    Db, Devoir, DevoirEntree, DevoirModification, RapportMigration, IMPORT_MAX_OCTETS,
+    Db, Devoir, DevoirEntree, DevoirModification, RapportMigration, Tag, TagEntree,
+    IMPORT_MAX_OCTETS,
 };
 use tdb_core::planner::Plan;
 use tdb_core::service::{Config, ConfigUpdate, CoursDuJourEtat, CoursSemaineEtat};
@@ -81,6 +82,31 @@ fn modifier_devoir(s: Etat, id: i64, modification: DevoirModification) -> Result
 #[tauri::command]
 fn supprimer_devoir(s: Etat, id: i64) -> Resultat<()> {
     s.db.supprimer_devoir(id)
+}
+
+#[tauri::command]
+fn lister_tags(s: Etat) -> Resultat<Vec<Tag>> {
+    s.db.lister_tags()
+}
+
+#[tauri::command]
+fn creer_tag(s: Etat, tag: TagEntree) -> Resultat<Tag> {
+    s.db.creer_tag(tag)
+}
+
+#[tauri::command]
+fn modifier_tag(s: Etat, id: i64, tag: TagEntree) -> Resultat<Tag> {
+    s.db.modifier_tag(id, tag)
+}
+
+#[tauri::command]
+fn supprimer_tag(s: Etat, id: i64) -> Resultat<()> {
+    s.db.supprimer_tag(id)
+}
+
+#[tauri::command]
+fn definir_tags_devoir(s: Etat, id: i64, tags: Vec<i64>) -> Resultat<Devoir> {
+    s.db.definir_tags_devoir(id, tags)
 }
 
 /// Export JSON : la boîte « Enregistrer sous » est ouverte côté Rust, le frontend n'a aucun accès disque.
@@ -209,6 +235,11 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             creer_devoir,
             modifier_devoir,
             supprimer_devoir,
+            lister_tags,
+            creer_tag,
+            modifier_tag,
+            supprimer_tag,
+            definir_tags_devoir,
             exporter_devoirs,
             importer_devoirs,
             migrer_ancienne_base,

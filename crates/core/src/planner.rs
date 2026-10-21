@@ -305,6 +305,7 @@ mod tests {
             echeance: ech.into(),
             type_: type_.into(),
             statut: statut.into(),
+            tags: Vec::new(),
         }
     }
 

@@ -33,6 +33,7 @@ pub fn Dashboard() -> impl IntoView {
                 echeance: String::new(),
                 type_: "devoir".into(),
                 statut: "a_faire".into(),
+                tags: Vec::new(),
             },
             move || nouveau.set(String::new()),
         );

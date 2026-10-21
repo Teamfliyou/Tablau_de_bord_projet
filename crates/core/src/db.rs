@@ -8,8 +8,8 @@ use std::sync::{Mutex, MutexGuard};
 
 pub use tdb_shared::{
     valider_echeance, valider_matiere, valider_statut, valider_titre, valider_type, Devoir,
-    DevoirEntree, DevoirModification, RapportMigration, IMPORT_MAX, IMPORT_MAX_OCTETS, STATUTS,
-    TYPES,
+    DevoirEntree, DevoirModification, RapportMigration, Tag, TagEntree, IMPORT_MAX,
+    IMPORT_MAX_OCTETS, STATUTS, TYPES,
 };
 const SAUVEGARDES_CONSERVEES: usize = 7;
 
@@ -29,6 +29,17 @@ const MIGRATIONS: &[&str] = &[
         url TEXT PRIMARY KEY,
         contenu TEXT NOT NULL,
         recupere_le TEXT NOT NULL
+    );",
+    // v2 : tags personnalisés (ajout seul, aucune donnée existante modifiée).
+    "CREATE TABLE tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nom TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        couleur TEXT NOT NULL DEFAULT '#6366f1'
+    );
+    CREATE TABLE devoir_tags (
+        devoir_id INTEGER NOT NULL REFERENCES devoirs (id) ON DELETE CASCADE,
+        tag_id INTEGER NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
+        PRIMARY KEY (devoir_id, tag_id)
     );",
 ];
 
@@ -191,26 +202,30 @@ impl Db {
         let mut stmt = conn.prepare(
             "SELECT id, titre, matiere, echeance, type, statut FROM devoirs ORDER BY id",
         )?;
-        let lignes = stmt
+        let mut lignes = stmt
             .query_map([], ligne_devoir)?
             .collect::<Result<Vec<_>, _>>()?;
+        for d in &mut lignes {
+            d.tags = tags_du_devoir(&conn, d.id)?;
+        }
         Ok(lignes)
     }
 
     pub fn creer_devoir(&self, entree: DevoirEntree) -> Resultat<Devoir> {
         let e = entree.valider()?;
-        let conn = self.verrou()?;
-        conn.execute(
-            "INSERT INTO devoirs (titre, matiere, echeance, type, statut) VALUES (?1,?2,?3,?4,?5)",
-            params![e.titre, e.matiere, e.echeance, e.type_, e.statut],
-        )?;
+        let mut conn = self.verrou()?;
+        let tx = conn.transaction()?;
+        let id = inserer_devoir(&tx, &e)?;
+        let tags = tags_du_devoir(&tx, id)?;
+        tx.commit()?;
         Ok(Devoir {
-            id: conn.last_insert_rowid(),
+            id,
             titre: e.titre,
             matiere: e.matiere,
             echeance: e.echeance,
             type_: e.type_,
             statut: e.statut,
+            tags,
         })
     }
 
@@ -224,11 +239,12 @@ impl Db {
             )
             .optional()?
             .ok_or_else(|| Erreur::Introuvable("Devoir introuvable.".into()))?;
-        let d = m.appliquer(d)?;
+        let mut d = m.appliquer(d)?;
         conn.execute(
             "UPDATE devoirs SET titre=?2, matiere=?3, echeance=?4, type=?5, statut=?6 WHERE id=?1",
             params![d.id, d.titre, d.matiere, d.echeance, d.type_, d.statut],
         )?;
+        d.tags = tags_du_devoir(&conn, id)?;
         Ok(d)
     }
 
@@ -242,7 +258,101 @@ impl Db {
         Ok(())
     }
 
-    /// Export au format historique (sans identifiant).
+    // ------------------------------------------------------------------ Tags
+
+    pub fn lister_tags(&self) -> Resultat<Vec<Tag>> {
+        let conn = self.verrou()?;
+        let mut stmt = conn.prepare("SELECT id, nom, couleur FROM tags ORDER BY nom")?;
+        let lignes = stmt
+            .query_map([], ligne_tag)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(lignes)
+    }
+
+    pub fn creer_tag(&self, entree: TagEntree) -> Resultat<Tag> {
+        let e = entree.valider()?;
+        let conn = self.verrou()?;
+        if nom_tag_pris(&conn, &e.nom, None)? {
+            return validation("Un tag porte déjà ce nom.");
+        }
+        conn.execute(
+            "INSERT INTO tags (nom, couleur) VALUES (?1, ?2)",
+            params![e.nom, e.couleur],
+        )?;
+        Ok(Tag {
+            id: conn.last_insert_rowid(),
+            nom: e.nom,
+            couleur: e.couleur,
+        })
+    }
+
+    pub fn modifier_tag(&self, id: i64, entree: TagEntree) -> Resultat<Tag> {
+        let e = entree.valider()?;
+        let conn = self.verrou()?;
+        if nom_tag_pris(&conn, &e.nom, Some(id))? {
+            return validation("Un tag porte déjà ce nom.");
+        }
+        let n = conn.execute(
+            "UPDATE tags SET nom = ?2, couleur = ?3 WHERE id = ?1",
+            params![id, e.nom, e.couleur],
+        )?;
+        if n == 0 {
+            return Err(Erreur::Introuvable("Tag introuvable.".into()));
+        }
+        Ok(Tag {
+            id,
+            nom: e.nom,
+            couleur: e.couleur,
+        })
+    }
+
+    /// Supprime le tag et ses associations ; les devoirs restent intacts.
+    pub fn supprimer_tag(&self, id: i64) -> Resultat<()> {
+        let n = self
+            .verrou()?
+            .execute("DELETE FROM tags WHERE id = ?1", [id])?;
+        if n == 0 {
+            return Err(Erreur::Introuvable("Tag introuvable.".into()));
+        }
+        Ok(())
+    }
+
+    /// Remplace l'ensemble des tags d'un devoir (ajout et retrait en une transaction).
+    pub fn definir_tags_devoir(&self, id: i64, tags: Vec<i64>) -> Resultat<Devoir> {
+        if tags.len() > tdb_shared::TAGS_PAR_DEVOIR_MAX {
+            return validation("Un devoir ne peut pas avoir plus de 20 tags.");
+        }
+        let mut conn = self.verrou()?;
+        let tx = conn.transaction()?;
+        let mut devoir = tx
+            .query_row(
+                "SELECT id, titre, matiere, echeance, type, statut FROM devoirs WHERE id = ?1",
+                [id],
+                ligne_devoir,
+            )
+            .optional()?
+            .ok_or_else(|| Erreur::Introuvable("Devoir introuvable.".into()))?;
+        tx.execute("DELETE FROM devoir_tags WHERE devoir_id = ?1", [id])?;
+        for tag_id in tags {
+            let existe: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM tags WHERE id = ?1)",
+                [tag_id],
+                |r| r.get(0),
+            )?;
+            if !existe {
+                return Err(Erreur::Introuvable("Tag introuvable.".into()));
+            }
+            tx.execute(
+                "INSERT OR IGNORE INTO devoir_tags (devoir_id, tag_id) VALUES (?1, ?2)",
+                params![id, tag_id],
+            )?;
+        }
+        devoir.tags = tags_du_devoir(&tx, id)?;
+        tx.commit()?;
+        Ok(devoir)
+    }
+
+    /// Export au format historique (sans identifiant) ; les tags sont exportés par nom.
     pub fn exporter_devoirs(&self) -> Resultat<Vec<DevoirEntree>> {
         Ok(self
             .lister_devoirs()?
@@ -253,6 +363,14 @@ impl Db {
                 echeance: d.echeance,
                 type_: d.type_,
                 statut: d.statut,
+                tags: d
+                    .tags
+                    .into_iter()
+                    .map(|t| TagEntree {
+                        nom: t.nom,
+                        couleur: t.couleur,
+                    })
+                    .collect(),
             })
             .collect())
     }
@@ -285,10 +403,7 @@ impl Db {
         let mut conn = self.verrou()?;
         let tx = conn.transaction()?;
         for e in entrees {
-            tx.execute(
-                "INSERT INTO devoirs (titre, matiere, echeance, type, statut) VALUES (?1,?2,?3,?4,?5)",
-                params![e.titre, e.matiere, e.echeance, e.type_, e.statut],
-            )?;
+            inserer_devoir(&tx, e)?;
         }
         tx.commit()?;
         Ok(entrees.len())
@@ -401,7 +516,15 @@ impl Db {
             })?
             .collect::<Result<_, _>>()?;
 
-        let existants = self.exporter_devoirs()?;
+        // Les tags ne font pas partie de la comparaison de doublons (anciennes bases sans tags).
+        let existants: Vec<DevoirEntree> = self
+            .exporter_devoirs()?
+            .into_iter()
+            .map(|mut e| {
+                e.tags.clear();
+                e
+            })
+            .collect();
         let (mut nouveaux, mut ignores) = (Vec::<DevoirEntree>::new(), 0usize);
         for [titre, matiere, echeance, type_, statut] in anciens {
             let e = DevoirEntree {
@@ -418,6 +541,7 @@ impl Db {
                 } else {
                     "a_faire".into()
                 },
+                tags: Vec::new(),
             };
             match e.valider() {
                 Ok(e) if !existants.contains(&e) && !nouveaux.contains(&e) => nouveaux.push(e),
@@ -492,7 +616,59 @@ fn ligne_devoir(r: &rusqlite::Row<'_>) -> rusqlite::Result<Devoir> {
         echeance: r.get(3)?,
         type_: r.get(4)?,
         statut: r.get(5)?,
+        tags: Vec::new(),
     })
+}
+
+fn ligne_tag(r: &rusqlite::Row<'_>) -> rusqlite::Result<Tag> {
+    Ok(Tag {
+        id: r.get(0)?,
+        nom: r.get(1)?,
+        couleur: r.get(2)?,
+    })
+}
+
+/// Insère un devoir et ses tags (créés au besoin, par nom sans tenir compte de la casse).
+fn inserer_devoir(conn: &Connection, e: &DevoirEntree) -> rusqlite::Result<i64> {
+    conn.execute(
+        "INSERT INTO devoirs (titre, matiere, echeance, type, statut) VALUES (?1,?2,?3,?4,?5)",
+        params![e.titre, e.matiere, e.echeance, e.type_, e.statut],
+    )?;
+    let id = conn.last_insert_rowid();
+    for t in &e.tags {
+        conn.execute(
+            "INSERT OR IGNORE INTO tags (nom, couleur) VALUES (?1, ?2)",
+            params![t.nom, t.couleur],
+        )?;
+        let tag_id: i64 = conn.query_row("SELECT id FROM tags WHERE nom = ?1", [&t.nom], |r| {
+            r.get(0)
+        })?;
+        conn.execute(
+            "INSERT OR IGNORE INTO devoir_tags (devoir_id, tag_id) VALUES (?1, ?2)",
+            params![id, tag_id],
+        )?;
+    }
+    Ok(id)
+}
+
+fn tags_du_devoir(conn: &Connection, devoir_id: i64) -> rusqlite::Result<Vec<Tag>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.nom, t.couleur FROM devoir_tags dt
+         JOIN tags t ON t.id = dt.tag_id
+         WHERE dt.devoir_id = ?1 ORDER BY t.nom",
+    )?;
+    let lignes = stmt
+        .query_map([devoir_id], ligne_tag)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(lignes)
+}
+
+fn nom_tag_pris(conn: &Connection, nom: &str, exclu: Option<i64>) -> rusqlite::Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM tags WHERE nom = ?1 AND id IS NOT ?2)",
+        params![nom, exclu],
+        |r| r.get(0),
+    )
 }
 
 fn io_err(e: std::io::Error) -> Erreur {
@@ -530,6 +706,7 @@ mod tests {
             echeance: "2026-10-05".into(),
             type_: "ds".into(),
             statut: "a_faire".into(),
+            tags: Vec::new(),
         }
     }
 
@@ -707,6 +884,63 @@ mod tests {
         // Relancer la migration ne duplique rien.
         let (r2, _) = db.migrer_ancienne_base(&ancienne).unwrap();
         assert_eq!(r2.devoirs_importes, 0);
+    }
+
+    #[test]
+    fn tags_crud_association_et_import_export() {
+        let db = Db::en_memoire().unwrap();
+        let d = db.creer_devoir(entree("Projet")).unwrap();
+        let cm = db
+            .creer_tag(TagEntree {
+                nom: "CM".into(),
+                couleur: "#FF0000".into(),
+            })
+            .unwrap();
+        assert!(db
+            .creer_tag(TagEntree {
+                nom: "cm".into(),
+                couleur: "#00ff00".into(),
+            })
+            .is_err());
+        let urgent = db
+            .creer_tag(TagEntree {
+                nom: "Urgent".into(),
+                couleur: "#123456".into(),
+            })
+            .unwrap();
+        let m = db.definir_tags_devoir(d.id, vec![cm.id, urgent.id]).unwrap();
+        assert_eq!(m.tags.len(), 2);
+        let m = db.definir_tags_devoir(d.id, vec![urgent.id]).unwrap();
+        assert_eq!(m.tags, vec![urgent.clone()]);
+        assert!(db.definir_tags_devoir(d.id, vec![999]).is_err());
+        db.definir_tags_devoir(d.id, vec![cm.id]).unwrap();
+        let renomme = db
+            .modifier_tag(
+                cm.id,
+                TagEntree {
+                    nom: "Cours".into(),
+                    couleur: "#00ff00".into(),
+                },
+            )
+            .unwrap();
+        assert_eq!(renomme.nom, "Cours");
+        // Export avec tags, puis import dans une base vierge (tags recréés).
+        let json = serde_json::to_string(&db.exporter_devoirs().unwrap()).unwrap();
+        let autre = Db::en_memoire().unwrap();
+        autre.importer_devoirs_json(&json).unwrap();
+        assert_eq!(autre.lister_devoirs().unwrap()[0].tags[0].nom, "Cours");
+        // Ancien format sans tags : accepté.
+        assert_eq!(
+            autre
+                .importer_devoirs_json(r#"[{"titre":"sans tags"}]"#)
+                .unwrap(),
+            1
+        );
+        // Supprimer un tag ne supprime pas le devoir.
+        db.supprimer_tag(cm.id).unwrap();
+        let apres = db.lister_devoirs().unwrap();
+        assert_eq!(apres.len(), 1);
+        assert!(apres[0].tags.is_empty());
     }
 
     #[test]

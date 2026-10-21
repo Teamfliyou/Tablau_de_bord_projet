@@ -7,7 +7,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::{json, Value};
 use tdb_shared::{
-    Categories, Config, ConfigUpdate, Cours, Devoir, DevoirEntree, DevoirModification, Filtres,
+    Categories, Config, ConfigUpdate, Cours, Devoir, DevoirEntree, DevoirModification, Filtres, Tag,
     Plan,
 };
 
@@ -107,6 +107,10 @@ pub struct Etat {
     pub devoirs: RwSignal<Vec<Devoir>>,
     pub erreur_devoirs: RwSignal<Option<String>>,
     pub edition: RwSignal<Option<Devoir>>,
+    // Tags
+    pub tags: RwSignal<Vec<Tag>>,
+    pub filtre_tag: RwSignal<Option<i64>>,
+    pub gestion_tags: RwSignal<bool>,
     // Plan IA
     pub plan: RwSignal<Option<Plan>>,
     pub chargement_plan: RwSignal<bool>,
@@ -144,6 +148,9 @@ impl Etat {
             maj_flux: RwSignal::new(String::new()),
             devoirs: RwSignal::new(vec![]),
             erreur_devoirs: RwSignal::new(None),
+            tags: RwSignal::new(vec![]),
+            filtre_tag: RwSignal::new(None),
+            gestion_tags: RwSignal::new(false),
             edition: RwSignal::new(None),
             plan: RwSignal::new(None),
             chargement_plan: RwSignal::new(false),
@@ -376,6 +383,9 @@ impl Etat {
 
     pub async fn charger_devoirs_async(self) {
         self.erreur_devoirs.set(None);
+        if let Ok(t) = api::lister_tags().await {
+            self.tags.set(t);
+        }
         match api::lister_devoirs().await {
             Ok(l) => self.devoirs.set(l),
             Err(e) => {

@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use tdb_core::{Erreur, Resultat};
-use tdb_shared::{Devoir, DevoirEntree, DevoirModification};
+use tdb_shared::{Devoir, DevoirEntree, DevoirModification, Tag, TagEntree, TAGS_PAR_DEVOIR_MAX};
 
 #[derive(Debug, Clone)]
 pub struct Utilisateur {
@@ -65,7 +65,67 @@ fn devoir(r: &rusqlite::Row<'_>) -> rusqlite::Result<Devoir> {
         echeance: r.get(3)?,
         type_: r.get(4)?,
         statut: r.get(5)?,
+        tags: Vec::new(),
     })
+}
+
+fn ligne_tag(r: &rusqlite::Row<'_>) -> rusqlite::Result<Tag> {
+    Ok(Tag {
+        id: r.get(0)?,
+        nom: r.get(1)?,
+        couleur: r.get(2)?,
+    })
+}
+
+/// Insère un devoir et ses tags de l'utilisateur (créés au besoin, sans tenir compte de la casse).
+fn inserer_devoir(conn: &Connection, user_id: i64, e: &DevoirEntree) -> rusqlite::Result<i64> {
+    conn.execute(
+        "INSERT INTO devoirs (user_id, titre, matiere, echeance, type, statut) \
+         VALUES (?1,?2,?3,?4,?5,?6)",
+        params![user_id, e.titre, e.matiere, e.echeance, e.type_, e.statut],
+    )?;
+    let id = conn.last_insert_rowid();
+    for t in &e.tags {
+        conn.execute(
+            "INSERT OR IGNORE INTO tags (user_id, nom, couleur) VALUES (?1,?2,?3)",
+            params![user_id, t.nom, t.couleur],
+        )?;
+        let tag_id: i64 = conn.query_row(
+            "SELECT id FROM tags WHERE user_id = ?1 AND nom = ?2",
+            params![user_id, t.nom],
+            |r| r.get(0),
+        )?;
+        conn.execute(
+            "INSERT OR IGNORE INTO devoir_tags (devoir_id, tag_id) VALUES (?1, ?2)",
+            params![id, tag_id],
+        )?;
+    }
+    Ok(id)
+}
+
+fn tags_du_devoir(conn: &Connection, devoir_id: i64) -> rusqlite::Result<Vec<Tag>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.nom, t.couleur FROM devoir_tags dt
+         JOIN tags t ON t.id = dt.tag_id
+         WHERE dt.devoir_id = ?1 ORDER BY t.nom",
+    )?;
+    let lignes = stmt
+        .query_map([devoir_id], ligne_tag)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(lignes)
+}
+
+fn nom_tag_pris(
+    conn: &Connection,
+    user_id: i64,
+    nom: &str,
+    exclu: Option<i64>,
+) -> rusqlite::Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM tags WHERE user_id = ?1 AND nom = ?2 AND id IS NOT ?3)",
+        params![user_id, nom, exclu],
+        |r| r.get(0),
+    )
 }
 
 const COLONNES_DEVOIR: &str = "id, titre, COALESCE(matiere,''), COALESCE(echeance,''), \
@@ -134,7 +194,7 @@ impl Store {
         let version: i64 = self
             .verrou()?
             .query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if version >= 2 {
+        if version >= 3 {
             return Ok(());
         }
         let existante: bool = self.verrou()?.query_row(
@@ -194,7 +254,22 @@ impl Store {
             "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users (email);
              CREATE INDEX IF NOT EXISTS ix_devoirs_user_id ON devoirs (user_id);",
         )?;
-        tx.pragma_update(None, "user_version", 2)?;
+        // v3 : tags par utilisateur (ajout seul ; les données existantes ne sont pas modifiées).
+        tx.execute_batch(
+            "CREATE TABLE IF NOT EXISTS tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL REFERENCES users (id),
+                nom VARCHAR NOT NULL COLLATE NOCASE,
+                couleur VARCHAR NOT NULL DEFAULT '#6366f1'
+             );
+             CREATE UNIQUE INDEX IF NOT EXISTS ix_tags_user_nom ON tags (user_id, nom);
+             CREATE TABLE IF NOT EXISTS devoir_tags (
+                devoir_id INTEGER NOT NULL REFERENCES devoirs (id) ON DELETE CASCADE,
+                tag_id INTEGER NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
+                PRIMARY KEY (devoir_id, tag_id)
+             );",
+        )?;
+        tx.pragma_update(None, "user_version", 3)?;
         tx.commit()?;
         Ok(())
     }
@@ -313,27 +388,30 @@ impl Store {
         let mut stmt = conn.prepare(&format!(
             "SELECT {COLONNES_DEVOIR} FROM devoirs WHERE user_id = ?1 ORDER BY id"
         ))?;
-        let lignes = stmt
+        let mut lignes = stmt
             .query_map([user_id], devoir)?
             .collect::<Result<Vec<_>, _>>()?;
+        for d in &mut lignes {
+            d.tags = tags_du_devoir(&conn, d.id)?;
+        }
         Ok(lignes)
     }
 
     pub fn creer_devoir(&self, user_id: i64, entree: DevoirEntree) -> Resultat<Devoir> {
         let e = entree.valider()?;
-        let conn = self.verrou()?;
-        conn.execute(
-            "INSERT INTO devoirs (user_id, titre, matiere, echeance, type, statut) \
-             VALUES (?1,?2,?3,?4,?5,?6)",
-            params![user_id, e.titre, e.matiere, e.echeance, e.type_, e.statut],
-        )?;
+        let mut conn = self.verrou()?;
+        let tx = conn.transaction()?;
+        let id = inserer_devoir(&tx, user_id, &e)?;
+        let tags = tags_du_devoir(&tx, id)?;
+        tx.commit()?;
         Ok(Devoir {
-            id: conn.last_insert_rowid(),
+            id,
             titre: e.titre,
             matiere: e.matiere,
             echeance: e.echeance,
             type_: e.type_,
             statut: e.statut,
+            tags,
         })
     }
 
@@ -352,17 +430,25 @@ impl Store {
             )
             .optional()?
             .ok_or_else(|| Erreur::Introuvable("Devoir introuvable".into()))?;
-        let d = m.appliquer(actuel)?;
+        let mut d = m.appliquer(actuel)?;
         conn.execute(
             "UPDATE devoirs SET titre=?3, matiere=?4, echeance=?5, type=?6, statut=?7 \
              WHERE id=?1 AND user_id=?2",
             params![d.id, user_id, d.titre, d.matiere, d.echeance, d.type_, d.statut],
         )?;
+        d.tags = tags_du_devoir(&conn, id)?;
         Ok(d)
     }
 
     pub fn supprimer_devoir(&self, user_id: i64, id: i64) -> Resultat<()> {
-        let n = self.verrou()?.execute(
+        let conn = self.verrou()?;
+        // Associations d'abord, uniquement si le devoir appartient à l'utilisateur.
+        conn.execute(
+            "DELETE FROM devoir_tags WHERE devoir_id = ?1 AND EXISTS \
+             (SELECT 1 FROM devoirs WHERE id = ?1 AND user_id = ?2)",
+            params![id, user_id],
+        )?;
+        let n = conn.execute(
             "DELETE FROM devoirs WHERE id = ?1 AND user_id = ?2",
             params![id, user_id],
         )?;
@@ -385,13 +471,118 @@ impl Store {
         let mut conn = self.verrou()?;
         let tx = conn.transaction()?;
         for e in &valides {
-            tx.execute(
-                "INSERT INTO devoirs (user_id, titre, matiere, echeance, type, statut) \
-                 VALUES (?1,?2,?3,?4,?5,?6)",
-                params![user_id, e.titre, e.matiere, e.echeance, e.type_, e.statut],
-            )?;
+            inserer_devoir(&tx, user_id, e)?;
         }
         tx.commit()?;
         Ok(valides.len())
+    }
+
+    // -------------------------------------------------------------------- Tags
+
+    pub fn lister_tags(&self, user_id: i64) -> Resultat<Vec<Tag>> {
+        let conn = self.verrou()?;
+        let mut stmt =
+            conn.prepare("SELECT id, nom, couleur FROM tags WHERE user_id = ?1 ORDER BY nom")?;
+        let lignes = stmt
+            .query_map([user_id], ligne_tag)?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(lignes)
+    }
+
+    pub fn creer_tag(&self, user_id: i64, entree: TagEntree) -> Resultat<Tag> {
+        let e = entree.valider()?;
+        let conn = self.verrou()?;
+        if nom_tag_pris(&conn, user_id, &e.nom, None)? {
+            return Err(Erreur::Validation("Un tag porte déjà ce nom.".into()));
+        }
+        conn.execute(
+            "INSERT INTO tags (user_id, nom, couleur) VALUES (?1,?2,?3)",
+            params![user_id, e.nom, e.couleur],
+        )?;
+        Ok(Tag {
+            id: conn.last_insert_rowid(),
+            nom: e.nom,
+            couleur: e.couleur,
+        })
+    }
+
+    pub fn modifier_tag(&self, user_id: i64, id: i64, entree: TagEntree) -> Resultat<Tag> {
+        let e = entree.valider()?;
+        let conn = self.verrou()?;
+        if nom_tag_pris(&conn, user_id, &e.nom, Some(id))? {
+            return Err(Erreur::Validation("Un tag porte déjà ce nom.".into()));
+        }
+        let n = conn.execute(
+            "UPDATE tags SET nom = ?3, couleur = ?4 WHERE id = ?1 AND user_id = ?2",
+            params![id, user_id, e.nom, e.couleur],
+        )?;
+        if n == 0 {
+            return Err(Erreur::Introuvable("Tag introuvable".into()));
+        }
+        Ok(Tag {
+            id,
+            nom: e.nom,
+            couleur: e.couleur,
+        })
+    }
+
+    /// Supprime le tag et ses associations ; les devoirs restent intacts.
+    pub fn supprimer_tag(&self, user_id: i64, id: i64) -> Resultat<()> {
+        let conn = self.verrou()?;
+        conn.execute(
+            "DELETE FROM devoir_tags WHERE tag_id = ?1 AND EXISTS \
+             (SELECT 1 FROM tags WHERE id = ?1 AND user_id = ?2)",
+            params![id, user_id],
+        )?;
+        let n = conn.execute(
+            "DELETE FROM tags WHERE id = ?1 AND user_id = ?2",
+            params![id, user_id],
+        )?;
+        if n == 0 {
+            return Err(Erreur::Introuvable("Tag introuvable".into()));
+        }
+        Ok(())
+    }
+
+    /// Remplace l'ensemble des tags d'un devoir de l'utilisateur (transaction).
+    pub fn definir_tags_devoir(
+        &self,
+        user_id: i64,
+        id: i64,
+        tags: Vec<i64>,
+    ) -> Resultat<Devoir> {
+        if tags.len() > TAGS_PAR_DEVOIR_MAX {
+            return Err(Erreur::Validation(
+                "Un devoir ne peut pas avoir plus de 20 tags.".into(),
+            ));
+        }
+        let mut conn = self.verrou()?;
+        let tx = conn.transaction()?;
+        let mut devoir = tx
+            .query_row(
+                &format!("SELECT {COLONNES_DEVOIR} FROM devoirs WHERE id = ?1 AND user_id = ?2"),
+                params![id, user_id],
+                devoir,
+            )
+            .optional()?
+            .ok_or_else(|| Erreur::Introuvable("Devoir introuvable".into()))?;
+        tx.execute("DELETE FROM devoir_tags WHERE devoir_id = ?1", [id])?;
+        for tag_id in tags {
+            let existe: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM tags WHERE id = ?1 AND user_id = ?2)",
+                params![tag_id, user_id],
+                |r| r.get(0),
+            )?;
+            if !existe {
+                return Err(Erreur::Introuvable("Tag introuvable".into()));
+            }
+            tx.execute(
+                "INSERT OR IGNORE INTO devoir_tags (devoir_id, tag_id) VALUES (?1, ?2)",
+                params![id, tag_id],
+            )?;
+        }
+        devoir.tags = tags_du_devoir(&tx, id)?;
+        tx.commit()?;
+        Ok(devoir)
     }
 }

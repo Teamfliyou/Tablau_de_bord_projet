@@ -5,7 +5,6 @@ use crate::error::{validation, Erreur, Resultat};
 use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use chrono_tz::{Europe::Paris, Tz};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::OnceLock;
 use url::{Host, Url};
@@ -13,31 +12,7 @@ use url::{Host, Url};
 pub const TAILLE_MAX_ICS: usize = 10 * 1024 * 1024;
 pub const DELAI_REQUETE_SECONDES: u64 = 20;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Cours {
-    pub titre: String,
-    pub salle: String,
-    pub enseignant: String,
-    pub enseignants: Vec<String>,
-    pub debut: String,
-    pub fin: String,
-    pub debut_iso: String,
-    pub fin_iso: String,
-    pub date: String,
-    pub groupes: Vec<String>,
-    pub types: Vec<String>,
-    pub matiere: String,
-}
-
-#[derive(Debug, Default, Clone, Deserialize)]
-pub struct Filtres {
-    #[serde(default)]
-    pub groupes: Vec<String>,
-    #[serde(default)]
-    pub types: Vec<String>,
-    #[serde(default)]
-    pub matieres: Vec<String>,
-}
+pub use tdb_shared::{Categories, Cours, CoursDuJour, CoursSemaine, Filtres};
 
 // ------------------------------------------------------------------ SSRF
 
@@ -483,13 +458,6 @@ pub fn appliquer_filtres(cours: Vec<Cours>, f: &Filtres) -> Vec<Cours> {
         .collect()
 }
 
-#[derive(Debug, Serialize, PartialEq)]
-pub struct Categories {
-    pub groupes: Vec<String>,
-    pub types: Vec<String>,
-    pub matieres: Vec<String>,
-}
-
 pub fn analyser_categories(cours: &[Cours]) -> Categories {
     use std::collections::BTreeSet;
     let mut g = BTreeSet::new();
@@ -522,20 +490,6 @@ pub fn parser_jour(valeur: Option<&str>) -> Resultat<Option<NaiveDate>> {
                 Erreur::Validation(format!("Date invalide : {v} (format attendu AAAA-MM-JJ)"))
             }),
     }
-}
-
-#[derive(Debug, Serialize)]
-pub struct CoursDuJour {
-    pub date: String,
-    pub nb_cours: usize,
-    pub cours: Vec<Cours>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CoursSemaine {
-    pub date_debut: String,
-    pub date_fin: String,
-    pub cours: Vec<Cours>,
 }
 
 pub fn cours_du_jour(tous: Vec<Cours>, jour: Option<NaiveDate>, f: &Filtres) -> CoursDuJour {

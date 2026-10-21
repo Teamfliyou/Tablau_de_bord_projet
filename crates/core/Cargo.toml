@@ -5,6 +5,7 @@ edition = "2021"
 description = "Logique métier du Tableau de bord étudiant (SQLite, ADE, Kanban, Gemini)"
 
 [dependencies]
+tdb-shared = { path = "../shared" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"

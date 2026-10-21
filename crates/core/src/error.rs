@@ -28,3 +28,10 @@ pub type Resultat<T> = Result<T, Erreur>;
 pub fn validation<T>(msg: &str) -> Resultat<T> {
     Err(Erreur::Validation(msg.to_string()))
 }
+
+/// Les règles de validation partagées renvoient un message : il devient une erreur de validation.
+impl From<String> for Erreur {
+    fn from(message: String) -> Self {
+        Erreur::Validation(message)
+    }
+}

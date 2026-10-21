@@ -1,11 +1,10 @@
 //! Orchestration : configuration, flux ADE avec cache (mémoire + SQLite), plan de révision.
 
-use crate::ade::{self, Categories, Cours, CoursDuJour, CoursSemaine, Filtres};
+use crate::ade::{self, Categories, Cours, Filtres};
 use crate::db::{Db, RapportMigration};
 use crate::error::{validation, Erreur, Resultat};
 use crate::planner::{self, Plan};
 use crate::secrets::{StockageSecrets, SECRET_GEMINI};
-use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -13,53 +12,7 @@ use std::time::{Duration, Instant};
 pub const CACHE_TTL: Duration = Duration::from_secs(300);
 const PREFERENCES_MAX_OCTETS: usize = 16 * 1024;
 
-#[derive(Debug, Serialize)]
-pub struct Config {
-    pub username: String,
-    pub ade_url: String,
-    pub gemini_model: String,
-    pub gemini_configured: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ConfigUpdate {
-    #[serde(default)]
-    pub username: String,
-    #[serde(default)]
-    pub ade_url: String,
-    #[serde(default)]
-    pub gemini_model: Option<String>,
-    /// Nouvelle clé (jamais relue côté interface). Vide ou absente : clé inchangée.
-    #[serde(default)]
-    pub gemini_key: Option<String>,
-    #[serde(default)]
-    pub remove_gemini_key: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Default)]
-pub struct EtatFlux {
-    /// `true` si l'emploi du temps affiché provient du dernier cache faute de connexion.
-    pub hors_ligne: bool,
-    /// Date de la dernière récupération réussie (RFC 3339).
-    pub maj: Option<String>,
-    pub avertissement: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CoursDuJourEtat {
-    #[serde(flatten)]
-    pub jour: CoursDuJour,
-    #[serde(flatten)]
-    pub etat: EtatFlux,
-}
-
-#[derive(Debug, Serialize)]
-pub struct CoursSemaineEtat {
-    #[serde(flatten)]
-    pub semaine: CoursSemaine,
-    #[serde(flatten)]
-    pub etat: EtatFlux,
-}
+pub use tdb_shared::{Config, ConfigUpdate, CoursDuJourEtat, CoursSemaineEtat, EtatFlux};
 
 struct EntreeCache {
     url: String,

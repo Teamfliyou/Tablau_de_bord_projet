@@ -1,17 +1,16 @@
 //! Base SQLite locale : migrations versionnées, sauvegardes, devoirs, paramètres, cache ICS.
 
 use crate::error::{validation, Erreur, Resultat};
-use chrono::NaiveDate;
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
-pub const TYPES: [&str; 4] = ["devoir", "ie", "ds", "exam"];
-pub const STATUTS: [&str; 3] = ["a_faire", "en_cours", "termine"];
-pub const IMPORT_MAX: usize = 500;
-pub const IMPORT_MAX_OCTETS: u64 = 2 * 1024 * 1024;
+pub use tdb_shared::{
+    valider_echeance, valider_matiere, valider_statut, valider_titre, valider_type, Devoir,
+    DevoirEntree, DevoirModification, RapportMigration, IMPORT_MAX, IMPORT_MAX_OCTETS, STATUTS,
+    TYPES,
+};
 const SAUVEGARDES_CONSERVEES: usize = 7;
 
 /// Migrations appliquées dans l'ordre ; la version courante est stockée dans `PRAGMA user_version`.
@@ -32,103 +31,6 @@ const MIGRATIONS: &[&str] = &[
         recupere_le TEXT NOT NULL
     );",
 ];
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Devoir {
-    pub id: i64,
-    pub titre: String,
-    pub matiere: String,
-    pub echeance: String,
-    #[serde(rename = "type")]
-    pub type_: String,
-    pub statut: String,
-}
-
-/// Données d'un devoir à créer / importer (champs absents = valeurs par défaut).
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub struct DevoirEntree {
-    pub titre: String,
-    #[serde(default)]
-    pub matiere: String,
-    #[serde(default)]
-    pub echeance: String,
-    #[serde(default = "type_defaut", rename = "type")]
-    pub type_: String,
-    #[serde(default = "statut_defaut")]
-    pub statut: String,
-}
-
-fn type_defaut() -> String {
-    "devoir".into()
-}
-fn statut_defaut() -> String {
-    "a_faire".into()
-}
-
-/// Modification partielle d'un devoir.
-#[derive(Debug, Default, Clone, Deserialize)]
-pub struct DevoirModification {
-    pub titre: Option<String>,
-    pub matiere: Option<String>,
-    pub echeance: Option<String>,
-    #[serde(rename = "type")]
-    pub type_: Option<String>,
-    pub statut: Option<String>,
-}
-
-impl DevoirEntree {
-    /// Nettoie et valide les champs (mêmes règles que le schéma Pydantic historique).
-    pub fn valider(mut self) -> Resultat<Self> {
-        self.titre = self.titre.trim().to_string();
-        self.matiere = self.matiere.trim().to_string();
-        self.echeance = self.echeance.trim().to_string();
-        valider_titre(&self.titre)?;
-        valider_matiere(&self.matiere)?;
-        valider_echeance(&self.echeance)?;
-        valider_type(&self.type_)?;
-        valider_statut(&self.statut)?;
-        Ok(self)
-    }
-}
-
-fn valider_titre(t: &str) -> Resultat<()> {
-    if t.is_empty() || t.chars().count() > 200 {
-        return validation("Le titre doit contenir entre 1 et 200 caractères.");
-    }
-    Ok(())
-}
-fn valider_matiere(m: &str) -> Resultat<()> {
-    if m.chars().count() > 120 {
-        return validation("La matière est limitée à 120 caractères.");
-    }
-    Ok(())
-}
-fn valider_echeance(e: &str) -> Resultat<()> {
-    if !e.is_empty() && NaiveDate::parse_from_str(e, "%Y-%m-%d").is_err() {
-        return validation("L'échéance doit être au format AAAA-MM-JJ.");
-    }
-    Ok(())
-}
-fn valider_type(t: &str) -> Resultat<()> {
-    if !TYPES.contains(&t) {
-        return validation("Type de devoir invalide.");
-    }
-    Ok(())
-}
-fn valider_statut(s: &str) -> Resultat<()> {
-    if !STATUTS.contains(&s) {
-        return validation("Statut de devoir invalide.");
-    }
-    Ok(())
-}
-
-#[derive(Debug, Serialize)]
-pub struct RapportMigration {
-    pub devoirs_importes: usize,
-    pub devoirs_ignores: usize,
-    pub parametres_importes: bool,
-    pub cle_gemini_trouvee: bool,
-}
 
 /// Paramètres de l'ancienne base trouvés dans `users` (le secret est renvoyé séparément).
 #[derive(Debug, Default)]
@@ -314,7 +216,7 @@ impl Db {
 
     pub fn modifier_devoir(&self, id: i64, m: DevoirModification) -> Resultat<Devoir> {
         let conn = self.verrou()?;
-        let mut d = conn
+        let d = conn
             .query_row(
                 "SELECT id, titre, matiere, echeance, type, statut FROM devoirs WHERE id = ?1",
                 [id],
@@ -322,26 +224,7 @@ impl Db {
             )
             .optional()?
             .ok_or_else(|| Erreur::Introuvable("Devoir introuvable.".into()))?;
-        if let Some(v) = m.titre {
-            d.titre = v.trim().to_string();
-            valider_titre(&d.titre)?;
-        }
-        if let Some(v) = m.matiere {
-            d.matiere = v.trim().to_string();
-            valider_matiere(&d.matiere)?;
-        }
-        if let Some(v) = m.echeance {
-            d.echeance = v.trim().to_string();
-            valider_echeance(&d.echeance)?;
-        }
-        if let Some(v) = m.type_ {
-            valider_type(&v)?;
-            d.type_ = v;
-        }
-        if let Some(v) = m.statut {
-            valider_statut(&v)?;
-            d.statut = v;
-        }
+        let d = m.appliquer(d)?;
         conn.execute(
             "UPDATE devoirs SET titre=?2, matiere=?3, echeance=?4, type=?5, statut=?6 WHERE id=?1",
             params![d.id, d.titre, d.matiere, d.echeance, d.type_, d.statut],

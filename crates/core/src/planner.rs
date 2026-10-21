@@ -5,29 +5,13 @@ use crate::ade::Cours;
 use crate::db::Devoir;
 use crate::error::{validation, Erreur, Resultat};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-pub const MODELE_PAR_DEFAUT: &str = "gemini-3.8-flash";
+pub use tdb_shared::MODELE_PAR_DEFAUT;
 pub const URL_GEMINI: &str = "https://generativelanguage.googleapis.com";
 const DELAI_GEMINI_SECONDES: u64 = 45;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Creneau {
-    pub heure: String,
-    pub matiere: String,
-    pub action: String,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq)]
-pub struct Plan {
-    pub conseil: String,
-    pub planning: Vec<Creneau>,
-    /// "gemini" ou "simulation"
-    pub mode: String,
-    /// Raison pour laquelle la simulation a remplacé Gemini (réseau, quota, clé invalide…).
-    pub avertissement: Option<String>,
-}
+pub use tdb_shared::{Creneau, Plan};
 
 /// Le nom du modèle est inséré dans l'URL : on n'accepte que des caractères sûrs.
 pub fn valider_modele(modele: &str) -> Resultat<&str> {

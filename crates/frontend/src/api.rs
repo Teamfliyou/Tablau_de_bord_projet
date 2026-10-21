@@ -8,7 +8,8 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use tdb_shared::{
     Categories, Config, ConfigUpdate, Connexion, CoursDuJourEtat, CoursSemaineEtat, Devoir,
-    DevoirEntree, DevoirModification, Filtres, Inscription, Plan, RapportMigration, ReponseAuth,
+    DevoirEntree, DevoirModification, Filtres, Inscription, Plan, RapportMigration, ReponseAuth, Tag,
+    TagEntree,
 };
 use wasm_bindgen::prelude::*;
 
@@ -284,6 +285,44 @@ pub async fn supprimer_devoir(id: i64) -> Res<()> {
         Mode::Web => http::<Value>("DELETE", &format!("/api/devoirs/{id}"), None)
             .await
             .map(|_| ()),
+    }
+}
+
+pub async fn lister_tags() -> Res<Vec<Tag>> {
+    match mode() {
+        Mode::Tauri => invoquer("lister_tags", json!({})).await,
+        Mode::Web => http("GET", "/api/tags", None).await,
+    }
+}
+
+pub async fn creer_tag(t: &TagEntree) -> Res<Tag> {
+    match mode() {
+        Mode::Tauri => invoquer("creer_tag", json!({ "tag": t })).await,
+        Mode::Web => http("POST", "/api/tags", Some(json!(t))).await,
+    }
+}
+
+pub async fn modifier_tag(id: i64, t: &TagEntree) -> Res<Tag> {
+    match mode() {
+        Mode::Tauri => invoquer("modifier_tag", json!({ "id": id, "tag": t })).await,
+        Mode::Web => http("PUT", &format!("/api/tags/{id}"), Some(json!(t))).await,
+    }
+}
+
+pub async fn supprimer_tag(id: i64) -> Res<()> {
+    match mode() {
+        Mode::Tauri => invoquer::<()>("supprimer_tag", json!({ "id": id })).await,
+        Mode::Web => http::<Value>("DELETE", &format!("/api/tags/{id}"), None)
+            .await
+            .map(|_| ()),
+    }
+}
+
+/// Remplace les tags d'un devoir (ajout et retrait).
+pub async fn definir_tags_devoir(id: i64, tags: &[i64]) -> Res<Devoir> {
+    match mode() {
+        Mode::Tauri => invoquer("definir_tags_devoir", json!({ "id": id, "tags": tags })).await,
+        Mode::Web => http("PUT", &format!("/api/devoirs/{id}/tags"), Some(json!(tags))).await,
     }
 }
 

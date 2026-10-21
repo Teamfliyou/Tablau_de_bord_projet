@@ -1,7 +1,7 @@
 # ============================================================
 #  Tableau de bord étudiant — Docker Compose
-#  Démarre l'API FastAPI + le frontend (servi par FastAPI)
-#  sur le port 8000, avec persistance de la base SQLite.
+#  Serveur Axum + frontend Leptos sur le port 8000,
+#  base SQLite persistante dans le volume « app-data ».
 # ============================================================
 
 services:
@@ -11,11 +11,16 @@ services:
     ports:
       - "8000:8000"        # Application + API : http://localhost:8000
     environment:
-      DATABASE_URL: sqlite:////data/app.db
+      # Secret de signature des sessions et de chiffrement des clés Gemini.
+      # Obligatoire en production : définissez-le dans un fichier .env (voir .env.example).
+      SECRET_KEY: ${SECRET_KEY:-}
+      DATABASE_PATH: /data/tableau-de-bord.db
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      ADE_ALLOWED_HOSTS: ${ADE_ALLOWED_HOSTS:-}
     volumes:
       - app-data:/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=2)"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3

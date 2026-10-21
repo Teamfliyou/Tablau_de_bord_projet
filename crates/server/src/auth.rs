@@ -25,8 +25,18 @@ struct Revendications {
 pub async fn hacher(mot_de_passe: String, cout: u32) -> Result<String, ApiError> {
     tokio::task::spawn_blocking(move || bcrypt::hash(mot_de_passe, cout))
         .await
-        .map_err(|_| ApiError::new(axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Erreur interne du serveur."))?
-        .map_err(|_| ApiError::new(axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Erreur interne du serveur."))
+        .map_err(|_| {
+            ApiError::new(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Erreur interne du serveur.",
+            )
+        })?
+        .map_err(|_| {
+            ApiError::new(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Erreur interne du serveur.",
+            )
+        })
 }
 
 pub async fn verifier(mot_de_passe: String, hash: String) -> bool {

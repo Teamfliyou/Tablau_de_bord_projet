@@ -1,51 +1,87 @@
 name: CI
 
+# Intégration continue de la version Web : backend Axum, frontend Leptos (WASM) et image Docker.
+# L'application Windows (Tauri) est compilée par le workflow « Build Windows (Tauri) ».
+
 on:
   push:
-    branches: ["main", "improve/**"]
+    branches: ["main", "migration/**", "improve/**"]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  backend-smoke:
+  backend:
+    name: Backend Rust (fmt, clippy, tests)
     runs-on: ubuntu-latest
-    env:
-      SECRET_KEY: ci-secret-key-only-32-bytes-minimum-2026
-      DATABASE_URL: sqlite:////tmp/tableau-bord-ci.db
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          python-version: "3.11"
-          cache: "pip"
-          cache-dependency-path: |
-            backend/requirements.txt
-            backend/requirements-dev.txt
-      - name: Install dependencies
-        run: pip install -r backend/requirements-dev.txt
-      - name: Compile Python
-        run: python -m compileall -q backend tests migrations
-      - name: Validate Alembic migration
-        run: alembic upgrade head --sql > /tmp/migration.sql
-      - name: Run tests
-        run: python -m pytest -q
-      - name: Import application
-        run: python -c "from backend.main import app; assert app is not None"
-      - name: Start API and check health
-        run: |
-          uvicorn backend.main:app --host 127.0.0.1 --port 8000 &
-          PID=$!
-          trap "kill $PID" EXIT
-          python - <<'PY'
-          import time
-          import urllib.request
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy -p tdb-shared -p tdb-core -p tdb-server --all-targets --locked -- -D warnings
+      - name: Tests
+        run: cargo test -p tdb-shared -p tdb-core -p tdb-server --locked
 
-          for _ in range(20):
-              try:
-                  with urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=2) as response:
-                      assert response.status == 200
-                      break
-              except Exception:
-                  time.sleep(0.5)
-          else:
-              raise SystemExit("API healthcheck failed")
-          PY
+  frontend:
+    name: Frontend Leptos (WebAssembly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+      - name: Clippy (cible WebAssembly)
+        run: cargo clippy -p tdb-frontend --target wasm32-unknown-unknown --locked -- -D warnings
+      - name: Compiler le frontend
+        run: trunk build --release
+        working-directory: crates/frontend
+      - name: Vérifier la sortie
+        run: |
+          test -f crates/frontend/dist/index.html
+          ls -lh crates/frontend/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: crates/frontend/dist
+          retention-days: 7
+
+  docker:
+    name: Image Docker (build et santé)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construire l'image
+        run: docker build -t tableau-de-bord:ci .
+      - name: Démarrer et vérifier /api/health
+        run: |
+          docker run -d --name tdb -p 8000:8000 tableau-de-bord:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/api/health; then echo; exit 0; fi
+            sleep 1
+          done
+          docker logs tdb
+          exit 1
+      - name: Vérifier la page d'accueil
+        run: curl -fsS http://127.0.0.1:8000/ | grep -q "Tableau de bord"

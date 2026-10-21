@@ -1,25 +1,11 @@
 # ==========================
-#  Python
+#  Rust / WebAssembly
 # ==========================
-__pycache__/
-*.pyc
-*.py[cod]
-*.so
-*.egg-info/
-.eggs/
-build/
-dist/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-
-# ==========================
-#  Environnements virtuels
-# ==========================
-.venv/
-venv/
+/target/
+crates/frontend/dist/
+src-tauri/gen/
+release/
+release-capture.png
 
 # ==========================
 #  Environnement / Secrets
@@ -28,23 +14,17 @@ venv/
 .env
 .env.local
 .env.*.local
+secret.key
 
 # ==========================
 #  Base de données
 # ==========================
 *.db
-app.db
-tableau_bord.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
-
-# ==========================
-#  Node.js / Frontend
-# ==========================
-node_modules/
-frontend/dist/
-dist/
-*.tgz
+data/
 
 # ==========================
 #  IDE / Éditeurs
@@ -62,12 +42,3 @@ Thumbs.db
 *.log
 logs/
 tmp/
-
-# ==========================
-#  Application de bureau (Tauri / Rust / Node)
-# ==========================
-node_modules/
-/target/
-src-tauri/gen/
-release/
-release-capture.png

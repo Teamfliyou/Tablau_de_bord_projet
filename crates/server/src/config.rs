@@ -88,14 +88,12 @@ impl Settings {
         };
         let db_path = chemin_base();
         let secret = charger_secret(&db_path)?;
-        let frontend_dir = env("FRONTEND_DIR")
-            .map(PathBuf::from)
-            .or_else(|| {
-                ["frontend-dist", "crates/frontend/dist"]
-                    .iter()
-                    .map(PathBuf::from)
-                    .find(|p| p.join("index.html").is_file())
-            });
+        let frontend_dir = env("FRONTEND_DIR").map(PathBuf::from).or_else(|| {
+            ["frontend-dist", "crates/frontend/dist"]
+                .iter()
+                .map(PathBuf::from)
+                .find(|p| p.join("index.html").is_file())
+        });
         Ok(Settings {
             bind,
             db_path,

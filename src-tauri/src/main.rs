@@ -2,5 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    tableau_de_bord_etudiant_lib::run()
+    if let Err(erreur) = tableau_de_bord_etudiant_lib::run() {
+        eprintln!("Tableau de bord étudiant : lancement impossible : {erreur}");
+        std::process::exit(1);
+    }
 }

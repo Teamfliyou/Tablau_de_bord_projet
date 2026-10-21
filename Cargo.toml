@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/shared", "crates/core", "crates/server", "src-tauri"]
+members = ["crates/shared", "crates/core", "crates/server", "crates/frontend", "src-tauri"]
 
 [profile.release]
 opt-level = "s"

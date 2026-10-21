@@ -1,321 +1,109 @@
 # 🎓 Tableau de bord étudiant
 
-Dashboard personnel **Full-Stack** pour visualiser son emploi du temps en temps réel (flux iCal ADE Campus), gérer ses devoirs via un tableau Kanban et bénéficier d'un **plan de révision intelligent** généré par IA (Google Gemini).
+Dashboard personnel pour visualiser son emploi du temps en temps réel (flux iCal **ADE Campus**), gérer ses devoirs dans un tableau **Kanban** et obtenir un **plan de révision intelligent** généré par IA (Google **Gemini**).
 
-> 🖥️ **Nouveau — application Windows autonome (Rust + Tauri)** : un `.exe` portable ou un installateur, sans Python ni navigateur. Téléchargement depuis *Actions → Build Windows (Tauri) → Artifacts* ou *Releases*. Voir **[docs/APPLICATION_WINDOWS.md](docs/APPLICATION_WINDOWS.md)** (installation, migration des données, compilation). La version Python ci-dessous reste disponible.
+Le projet est **100 % Rust** : un même frontend (Leptos, compilé en WebAssembly) sert la **version Web** (serveur Axum) et l'**application Windows** (Tauri 2).
 
-> **Stack (version Python)** : **FastAPI** (backend Python) + **Vue.js 3 / Tailwind CSS** (frontend sans build Node.js) + **SQLite / SQLAlchemy** (stockage local) + **Gemini** (génération de plans de révision).
-
----
-
-## 🏷️ Badges
-
-![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi&logoColor=white)
-![Vue.js](https://img.shields.io/badge/Vue.js-3-42b883?logo=vue.js&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-38bdf8?logo=tailwindcss&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-stable-orange?logo=rust&logoColor=white)
+![Axum](https://img.shields.io/badge/Axum-0.8-blue)
+![Leptos](https://img.shields.io/badge/Leptos-0.8-ef3939)
+![Tauri](https://img.shields.io/badge/Tauri-2-24c8db?logo=tauri&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-3.8_Flash-8E75B2?logo=google&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
 ![Licence](https://img.shields.io/badge/Licence-MIT-blue)
 
----
+> L'ancienne version Python / FastAPI / Vue.js est conservée sur la branche [`legacy/python-vue`](../../tree/legacy/python-vue). Le détail de la migration est dans [MIGRATION_RUST.md](MIGRATION_RUST.md).
 
-## ✨ Fonctionnalités clés
+## ✨ Fonctionnalités
 
-| Fonctionnalité | Description |
+| | |
 |---|---|
-| 📅 **Synchronisation ADE live** | Emploi du temps du jour et de la semaine synchronisé avec le flux iCal de l'école (ADE Campus). Auto-actualisation toutes les 60 s, badge "EN COURS" en temps réel et navigation de semaine en semaine. |
-| 🏷️ **Filtres & Personnalisation** | Analyse automatique du flux ADE pour détecter et filtrer les cours selon tes groupes (TP/TD/Khôlles), types d'épreuves (DS, IE, Exam) ou matières. |
-| 📋 **Gestion de devoirs (Kanban)** | Ajout, modification de statut (*À faire*, *En cours*, *Terminé*), suppression et badges d'échéance intelligents (aujourd'hui, demain, retard, J-X). Persistance SQLite. |
-| 🤖 **Plan de révision par IA** | Analyse simultanée des cours du jour et des devoirs par Google Gemini pour créer un plan de soirée structuré (format JSON strict). Mode simulation disponible sans clé API. |
-| ⚙️ **Configuration intégrée** | Saisie de l'URL ADE, de la clé Gemini et du pseudo directement depuis l'interface web (sauvegarde en base SQLite localement). |
-| 🎨 **Interface moderne & Bento Box** | Design fluide (Liquid Glass / Bento), mode d'affichage au choix (Modern Dock en bas ou Classic Sidebar) et responsive. |
+| 📅 **Synchronisation ADE** | Emploi du temps du jour et de la semaine depuis le flux iCal, actualisation toutes les 60 s, badge « EN COURS », navigation de semaine en semaine, mode hors ligne. |
+| 🏷️ **Filtres** | Détection automatique des groupes (TP/TD/Khôlles), types (DS, IE, Exam) et matières. |
+| 📋 **Devoirs (Kanban)** | Ajout, modification, statuts, échéances (J-X, retard), export / import JSON. |
+| 🤖 **Plan de révision IA** | Gemini avec réponse JSON stricte ; mode simulation sans clé ou en cas d'erreur. |
+| ⚙️ **Configuration** | Lien ADE, clé Gemini, modèle, dock ou barre latérale, thème clair / sombre / auto. |
+| 🔐 **Comptes (Web)** | Inscription / connexion, données isolées par utilisateur. |
 
----
+## 🏗️ Architecture
 
-## 🛠️ Guide d'installation complet des dépendances
+```
+crates/
+  shared/     types et validations partagés (compilables en WebAssembly)
+  core/       logique métier : ADE (anti-SSRF), Gemini, SQLite, secrets
+  server/     serveur Web Axum : API REST + authentification + fichiers statiques
+  frontend/   interface Leptos (Rust → WASM) + Tailwind, compilée par Trunk
+src-tauri/    application Windows (Tauri 2) : commandes IPC vers crates/core
+```
 
-### ⚡ Installation ultra-rapide en une ligne
+* **Web** : navigateur → Axum (`/api/*`) → SQLite multi-utilisateurs.
+* **Windows** : fenêtre Tauri → commandes IPC → `tdb-core` → SQLite local. Aucun port réseau n'est ouvert.
 
-Le script `install.sh` vérifie et installe automatiquement les dépendances système (`git`, `python3`, `python3-pip`, `python3-venv`, `curl`), clone le dépôt, rend `lancer_app.sh` exécutable puis lance l'application.
+## 🌐 Version Web
+
+### Docker (recommandé)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Teamfliyou/Tablau_de_bord_projet/main/install.sh | bash
+cp .env.example .env        # puis renseignez SECRET_KEY (openssl rand -base64 48)
+docker compose up --build -d
 ```
 
-Avant de pouvoir utiliser l'application, tu dois installer les outils de base sur ta machine. Suis la section correspondant à ton système d'exploitation.
+Ouvrez <http://localhost:8000>. La base SQLite est conservée dans le volume Docker `app-data` ; la santé est vérifiée sur `/api/health`. L'image finale ne contient que le binaire Rust, le frontend WASM et `curl` (ni Python ni Node.js).
 
----
+### Sans Docker (développement)
 
-### 🌐 Étape 1 : Préparer l'environnement système
-
-#### 🐧 Sur Linux (Ubuntu / Debian / Mint)
-Ouvre ton terminal et exécute :
-```bash
-# 1. Mettre à jour les paquets
-sudo apt update && sudo apt upgrade -y
-
-# 2. Installer Git, Python3, Pip et le module venv
-sudo apt install -y git python3 python3-pip python3-venv curl
-
-# 3. (Optionnel mais recommandé) Installer Docker & Docker Compose
-sudo apt install -y docker.io docker-compose-v2
-sudo usermod -aG docker $USER
-# ⚠️ Déconnecte-toi puis reconnecte-toi pour appliquer la permission Docker
-```
-
-#### 🍏 Sur macOS
-Si tu n'as pas **Homebrew**, installe-le en ouvrant le Terminal :
-```bash
-/bin/bash -c "$(curl -fsSL [https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh](https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh))"
-```
-Puis installe les dépendances nécessaires :
-```bash
-# 1. Installer Git et Python
-brew install git python
-
-# 2. (Optionnel) Installer Docker Desktop via Homebrew
-brew install --cask docker
-```
-
-#### 🪟 Sur Windows
-1. **Python** : Télécharge et installe Python (v3.10+) depuis [python.org](https://www.python.org/downloads/).  
-   ⚠️ **CRUCIAL** : Coche bien la case **"Add python.exe to PATH"** lors de l'installation !
-2. **Git** : Télécharge et installe Git depuis [git-scm.com](https://git-scm.com/).
-3. **Docker (Optionnel)** : Télécharge et installe [Docker Desktop pour Windows](https://www.docker.com/products/docker-desktop/).
-
----
-
-### 📥 Étape 2 : Récupérer le code source
-
-Ouvre un terminal (PowerShell sur Windows, Terminal sur Linux/macOS) :
+Prérequis : [Rust](https://rustup.rs) stable, la cible WebAssembly et [Trunk](https://trunkrs.dev).
 
 ```bash
-git clone [https://github.com/Teamfliyou/Tablau_de_bord_projet.git](https://github.com/Teamfliyou/Tablau_de_bord_projet.git)
-cd Tablau_de_bord_projet
+rustup target add wasm32-unknown-unknown
+cargo install trunk --locked
+
+(cd crates/frontend && trunk build --release)   # compile l'interface dans crates/frontend/dist
+cargo run -p tdb-server --release               # http://localhost:8000
 ```
 
----
+### Variables d'environnement
 
-### 🚀 Étape 3 : Lancer l'application (au choix)
+Voir [.env.example](.env.example) : `SECRET_KEY`, `PORT` / `BIND_ADDR`, `DATABASE_PATH`, `FRONTEND_DIR`, `ALLOWED_ORIGINS` (CORS, vide = même origine), `ADE_ALLOWED_HOSTS`, `GEMINI_API_KEY`, `JWT_EXPIRATION_MINUTES`, `BCRYPT_COST`, `ICS_CACHE_TTL_SECONDS`, `RUST_LOG`.
 
-Procède selon la méthode de ton choix :
+### Migrer une ancienne base Python
 
----
+Pointez `DATABASE_PATH` (ou l'ancienne `DATABASE_URL=sqlite:///…`) vers votre ancien `app.db`. Au démarrage, une sauvegarde est créée dans `sauvegardes/`, puis le schéma est complété sans rien supprimer. Définissez le même `SECRET_KEY` pour conserver les sessions ouvertes.
 
-#### 🐳 Méthode A : Avec Docker (Recommandée & Sans configuration Python)
+## 🖥️ Application Windows
 
-Cette méthode ne nécessite pas de créer d'environnement virtuel Python sur ton PC.
+Téléchargez l'installateur (`TableauDeBordEtudiant-Setup-<version>.exe`) ou le `.exe` portable dans **Actions → Build Windows (Tauri) → Artifacts**, ou dans **Releases** pour chaque tag `vX.Y.Z`. Détails : [docs/APPLICATION_WINDOWS.md](docs/APPLICATION_WINDOWS.md).
+
+### Générer le `.exe` soi-même
+
+Prérequis : Rust stable (cible MSVC) avec *Build Tools for Visual Studio*, la cible WebAssembly, Trunk et la CLI Tauri.
 
 ```bash
-# Lancer le conteneur en arrière-plan
-docker compose up -d
+rustup target add wasm32-unknown-unknown
+cargo install trunk tauri-cli --locked
+cargo tauri build --bundles nsis
 ```
 
-* **Accéder à l'application web** : [http://localhost:8000](http://localhost:8000)
-* **Consulter la documentation Swagger de l'API** : [http://localhost:8000/docs](http://localhost:8000/docs)
+Sorties : `target/release/TableauDeBordEtudiant.exe` et `target/release/bundle/nsis/*-setup.exe`.
 
----
-
-#### ⚡ Méthode B : Lancement automatique par script (Linux / macOS / WSL)
-
-Un script automatise la création de l'environnement `.venv`, l'installation des paquets Python et le démarrage des serveurs.
+Le workflow GitHub Actions peut aussi être lancé manuellement (*Actions → Build Windows (Tauri) → Run workflow*). Une Release n'est publiée que pour un tag :
 
 ```bash
-# Rendre le script exécutable
-chmod +x lancer_app.sh
-
-# Lancer le script
-./lancer_app.sh
+git tag v4.0.0 && git push origin v4.0.0
 ```
 
----
-
-#### 🛠️ Méthode C : Installation manuelle pas à pas (Tout OS)
-
-##### 1. Créer et activer l'environnement virtuel Python
-```bash
-cd backend
-
-# Créer le venv
-python3 -m venv .venv
-# (Sur Windows si 'python3' ne marche pas, tape : python -m venv .venv)
-
-# Activer le venv :
-# -> Sur Linux / macOS :
-source .venv/bin/activate
-
-# -> Sur Windows (PowerShell) :
-# .venv\Scripts\Activate.ps1
-
-# -> Sur Windows (CMD) :
-# .venv\Scripts\activate.bat
-```
-
-##### 2. Installer les dépendances Python du projet
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-*(Les dépendances installées sont : `fastapi`, `uvicorn`, `sqlalchemy`, `ics`, `httpx`, `python-dotenv`, `google-genai`, `pydantic`, `pyjwt`, `passlib`)*.
-
-##### 3. Créer le fichier de configuration `.env`
-À la racine du projet ou dans `backend/` :
-```bash
-cp ../.env.example .env
-```
-
-##### 4. Démarrer le serveur backend
-```bash
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-L'application web est directement accessible sur **[http://localhost:8000](http://localhost:8000)** (FastAPI sert directement le frontend HTML/Vue.js).
-
----
-
-## ⚙️ Configuration (`.env` ou Interface Web)
-
-Vous pouvez configurer l'application soit via les paramètres de l'onglet **Configuration** de l'interface, soit via le fichier `.env` :
-
-```env
-# URL d'export iCal de votre emploi du temps ADE
-ADE_ICS_URL=[https://votre-ecole.example.com/ade/ics?data=votre-lien-ics](https://votre-ecole.example.com/ade/ics?data=votre-lien-ics)
-
-# Secret utilisé pour signer les JWT (obligatoire en production)
-SECRET_KEY=une_longue_valeur_aleatoire_et_privee
-
-# Clé API Google Gemini (facultative)
-GEMINI_API_KEY=votre_cle_gemini_ici
-
-# Modèle Gemini utilisé (facultatif)
-GEMINI_MODEL=gemini-3.8-flash
-
-# Optionnel : domaines ADE autorisés, séparés par des virgules
-ADE_ALLOWED_HOSTS=
-
-# Fuseau horaire (Facultatif, par défaut Europe/Paris)
-APP_TIMEZONE=Europe/Paris
-
-# Port d'écoute du serveur
-PORT=8000
-```
-
----
-
-## 📁 Architecture du projet
-
-```text
-Tablau_de_bord_projet/
-├── backend/
-│   ├── main.py             # Création et assemblage de l'application FastAPI
-│   ├── settings.py         # Variables d'environnement et paramètres globaux
-│   ├── dependencies.py     # Authentification JWT et dépendances FastAPI
-│   ├── schemas.py          # Schémas Pydantic et validation des entrées
-│   ├── database.py         # Modèles et connexion SQLAlchemy
-│   ├── routers/            # Routes auth, cours, devoirs, configuration et IA
-│   ├── services/           # Parsing ADE/cache et planification IA
-│   ├── requirements.txt    # Dépendances d'exécution
-│   └── requirements-dev.txt# Dépendances de développement/tests
-├── frontend/
-│   └── index.html          # SPA Vue.js 3 + Tailwind CSS
-├── migrations/             # Migrations de schéma Alembic
-├── tests/                  # Tests automatisés Pytest
-├── .github/workflows/      # CI GitHub Actions
-├── Dockerfile
-├── docker-compose.yml
-├── alembic.ini
-├── lancer_app.sh
-└── README.md
-```
-
-**Déroulement d'une requête :**
-1. **Frontend (Vue.js 3)** fait des appels `fetch` vers l'API FastAPI.
-2. **FastAPI** interroge :
-   - **ADE Campus** : Téléchargement et parsing du flux `.ics` via la librairie Python `ics`.
-   - **SQLite (`app.db`)** : Gestion des devoirs et persistance de la configuration.
-   - **Google Gemini API** : Génération du plan de révision du soir selon un prompt structuré.
-
----
-
-## 📡 Endpoints de l'API REST
-
-| Méthode | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/cours-du-jour` | Récupère les cours de la journée (filtrables par `groupes`, `types`, `matieres`) |
-| `GET` | `/api/cours-semaine` | Récupère les cours de la semaine pour une date donnée |
-| `GET` | `/api/devoirs` | Liste l'ensemble des devoirs stockés en base |
-| `POST` | `/api/devoirs` | Crée un nouveau devoir |
-| `GET` | `/api/devoirs/export` | Exporte tous les devoirs au format JSON |
-| `POST` | `/api/devoirs/import` | Importe une liste de devoirs au format JSON |
-| `PATCH` | `/api/devoirs/{id}` | Met à jour le statut d'un devoir (*a_faire*, *en_cours*, *termine*) |
-| `DELETE` | `/api/devoirs/{id}` | Supprime un devoir |
-| `POST` | `/api/plan-revision` | Génère le plan de révision IA à partir des cours et devoirs |
-| `GET` | `/api/config` | Récupère la configuration utilisateur enregistrée |
-| `POST` | `/api/config` | Enregistre le pseudo, le lien ADE et la clé Gemini en base SQLite |
-| `GET` | `/api/config/categories` | Analyse le flux ADE pour extraire les groupes, types et matières disponibles |
-
----
-
-## 🧪 Tests et migrations
-
-Pour installer les dépendances de développement et lancer tous les tests :
+## ✅ Tests et qualité
 
 ```bash
-pip install -r backend/requirements-dev.txt
-pytest -q
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo clippy -p tdb-frontend --target wasm32-unknown-unknown -- -D warnings
 ```
-
-La CI GitHub exécute automatiquement la compilation Python, les tests, la validation Alembic et un démarrage réel de l'API avec healthcheck.
-
-Pour une **base existante créée avant Alembic**, marquez d'abord le schéma actuel comme version initiale :
-
-```bash
-alembic stamp 20261002_0001
-```
-
-Pour les futures évolutions du schéma :
-
-```bash
-alembic revision --autogenerate -m "description"
-alembic upgrade head
-```
-
-Pour une nouvelle base gérée entièrement par migrations, exécutez `alembic upgrade head` avant le premier démarrage.
-
----
-
-## 🐳 Commandes Docker utiles
-
-```bash
-docker compose down            # Arrête le conteneur (la base SQLite reste dans le volume Docker app-data)
-docker compose up -d --build   # Reconstruit l'image après une modification du code
-docker compose logs -f app     # Affiche les logs du backend en temps réel
-```
-
----
 
 ## 🔒 Sécurité
 
-- Les clés d'API et URLs ADE sont stockées localement dans la base SQLite ou dans le fichier `.env` non versionné (`.gitignore`).
-- En production publique, configurez `ALLOWED_ORIGINS` dans l'environnement plutôt que de laisser `*`.
-
----
+Mots de passe bcrypt + limitation des tentatives, sessions JWT, clés Gemini chiffrées au repos (Web) ou dans le Gestionnaire d'identifiants Windows, jamais journalisées ni renvoyées, anti-SSRF sur le flux ADE (HTTPS, adresses publiques uniquement, pas de redirection), requêtes SQL paramétrées, CORS restrictif, CSP stricte. Voir [MIGRATION_RUST.md](MIGRATION_RUST.md#4-sécurité).
 
 ## 📄 Licence
 
-Projet distribué sous licence **MIT**. Réutilisation, modification et distribution libres.
-
----
-
-## 📦 Changelog
-
-### 🚀 v1.1.0
-
-Optimisations de performance et nouvelles fonctionnalités de sauvegarde :
-
-- **Migration `requests` → `httpx`** : le téléchargement du flux iCal ADE utilise désormais le client HTTP asynchrone `httpx` (plus rapide et plus léger que `requests`).
-- **Cache mémoire du flux ADE** : le fichier iCal téléchargé est mis en cache en mémoire pendant **5 minutes** (TTL). Les requêtes répétitives vers le serveur ADE sont ainsi évitées et le temps de réponse des endpoints emploi du temps est fortement réduit.
-- **Export / Import des devoirs** : deux nouveaux boutons dans l'onglet Devoirs (Kanban) permettent de sauvegarder (`GET /api/devoirs/export`) et de restaurer (`POST /api/devoirs/import`) tous les devoirs au format JSON, pour une sauvegarde locale simple et rapide.
+MIT

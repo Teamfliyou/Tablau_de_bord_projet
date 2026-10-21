@@ -238,7 +238,9 @@ impl Store {
         if existe {
             return Ok(None);
         }
-        let maintenant = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.6f").to_string();
+        let maintenant = chrono::Utc::now()
+            .format("%Y-%m-%dT%H:%M:%S%.6f")
+            .to_string();
         conn.execute(
             "INSERT INTO users (email, password_hash, username, created_at) VALUES (?1,?2,?3,?4)",
             params![email, password_hash, username, maintenant],

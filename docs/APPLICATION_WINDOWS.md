@@ -3,7 +3,7 @@
 Depuis la version 4.0, le tableau de bord existe sous forme d'**application de bureau Windows autonome** :
 un seul fichier `.exe`, sans Python, sans Docker, sans Node.js, sans serveur et sans navigateur.
 
-La version Python/FastAPI (dossier `backend/`, `frontend/`) est **conservée telle quelle** ; l'application de bureau est une réécriture complète du backend en Rust.
+Depuis la migration complète vers Rust, l'application de bureau et la version Web partagent le même frontend (Leptos, Rust/WebAssembly) et les mêmes types ; l'ancien code Python/Vue est conservé sur la branche `legacy/python-vue`.
 
 ## 1. Télécharger l'application
 
@@ -82,14 +82,16 @@ Toutes les fonctionnalités de la version Python sont reprises :
 ## 6. Architecture
 
 ```
-index.html, src/            Frontend Vue 3 + Tailwind CSS (compilé par Vite, embarqué dans l'exe)
-src-tauri/src/              Application Tauri : commandes IPC, fenêtre, coffre Windows
-src-tauri/core/             Bibliothèque Rust `tdb-core` (sans dépendance à Tauri, testée seule)
+crates/frontend/            Frontend Leptos (Rust → WebAssembly) + Tailwind CSS, compilé par Trunk et embarqué dans l'exe
+crates/shared/              Types et validations partagés (compilables en WASM)
+crates/core/                Bibliothèque Rust `tdb-core` (sans dépendance à Tauri, testée seule)
   ├─ db.rs                  SQLite : migrations, sauvegardes, devoirs, réglages, import ancienne base
   ├─ ade.rs                 Validation d'URL anti-SSRF, téléchargement, parseur iCalendar, filtres
   ├─ planner.rs             Plan de révision : simulation locale + client Gemini
   ├─ service.rs             Orchestration, cache ICS (mémoire + SQLite), configuration
   └─ secrets.rs             Interface du stockage de secrets
+crates/server/              Serveur Web Axum (version Web, non utilisé par l'application Windows)
+src-tauri/src/              Application Tauri : commandes IPC, fenêtre, coffre Windows
 ```
 
 Le frontend communique avec Rust **uniquement par commandes Tauri** (`invoke`) : aucun serveur HTTP local n'est ouvert.
@@ -119,22 +121,23 @@ Bibliothèques : `tauri` 2, `rusqlite` (SQLite embarqué), `serde`, `tokio`, `re
 
 ## 8. Compiler soi-même
 
-Prérequis (développement uniquement) : [Rust](https://rustup.rs) stable + *Build Tools for Visual Studio* (charge « Développement Desktop en C++ »), Node.js 22.
+Prérequis (développement uniquement) : [Rust](https://rustup.rs) stable + *Build Tools for Visual Studio* (charge « Développement Desktop en C++ »), la cible WebAssembly, [Trunk](https://trunkrs.dev) et la CLI Tauri. Ni Node.js ni Python ne sont nécessaires.
 
 ```bash
-npm ci
-npm run tauri dev                      # mode développement (fenêtre native)
+rustup target add wasm32-unknown-unknown
+cargo install trunk tauri-cli --locked
+cargo tauri dev                        # mode développement (fenêtre native)
 cargo test --workspace                 # tests Rust
-npx tauri build --bundles nsis         # exe + installateur
+cargo tauri build --bundles nsis       # exe + installateur
 ```
 
 Sorties : `target/release/TableauDeBordEtudiant.exe` (portable) et `target/release/bundle/nsis/*-setup.exe`.
 
-`npm run dev` seul ouvre l'interface dans un navigateur avec un backend **simulé** (réservé au développement, absent des builds).
+Le même frontend fonctionne dans un navigateur avec le serveur Axum (voir le `README.md`).
 
 ### Intégration continue
 
-`.github/workflows/build-windows.yml` (runner `windows-latest`) : `npm ci` → build Vue → `cargo fmt --check` → `clippy -D warnings` → `cargo test` → `tauri build` → **test de lancement du `.exe` portable** (fenêtre créée, base SQLite créée) → **test de l'installateur** (installation silencieuse, raccourcis, lancement, désinstallation, données conservées) → artifacts. Un tag `vX.Y.Z` crée en plus une GitHub Release.
+`.github/workflows/build-windows.yml` (runner `windows-latest`) : build du frontend Leptos (`trunk build --release`) → `cargo fmt --check` → `clippy -D warnings` → `cargo test` → `tauri build` → **test de lancement du `.exe` portable** (fenêtre créée, base SQLite créée) → **test de l'installateur** (installation silencieuse, raccourcis, lancement, désinstallation, données conservées) → artifacts. Un tag `vX.Y.Z` crée en plus une GitHub Release.
 
 ```bash
 git tag v4.0.0 && git push origin v4.0.0
@@ -143,6 +146,6 @@ git tag v4.0.0 && git push origin v4.0.0
 ## 9. Limitations connues
 
 - Exécutables **non signés** (avertissement SmartScreen possible) ; pas de mise à jour automatique intégrée (réinstallez la nouvelle version par-dessus : les données sont conservées).
-- Windows uniquement (la version Python reste utilisable ailleurs).
+- Application Windows uniquement ; pour les autres systèmes, utilisez la version Web (serveur Axum, Docker).
 - Les événements récurrents (`RRULE`) du flux iCal ne sont pas étendus — comme dans la version Python ; ADE exporte normalement chaque séance comme un événement distinct.
 - Le modèle Gemini est librement saisissable : un nom inexistant donne un plan en mode simulation avec explication.

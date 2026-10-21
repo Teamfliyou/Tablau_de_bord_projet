@@ -37,13 +37,19 @@ pub fn routes() -> Router<AppState> {
         .route("/api/auth/me", get(profil_actuel))
         .route("/api/config", get(lire_config).post(enregistrer_config))
         .route("/api/config/categories", get(categories))
-        .route("/api/preferences", get(lire_preferences).put(ecrire_preferences))
+        .route(
+            "/api/preferences",
+            get(lire_preferences).put(ecrire_preferences),
+        )
         .route("/api/cours-du-jour", get(cours_du_jour))
         .route("/api/cours-semaine", get(cours_semaine))
         .route("/api/devoirs", get(lister_devoirs).post(creer_devoir))
         .route("/api/devoirs/export", get(exporter_devoirs))
         .route("/api/devoirs/import", post(importer_devoirs))
-        .route("/api/devoirs/{id}", patch(modifier_devoir).delete(supprimer_devoir))
+        .route(
+            "/api/devoirs/{id}",
+            patch(modifier_devoir).delete(supprimer_devoir),
+        )
         .route("/api/plan-revision", post(plan_revision))
 }
 
@@ -151,7 +157,9 @@ async fn connexion(
         }
         _ => {
             s.limiteur.echec(&email);
-            Err(ApiError::non_authentifie("E-mail ou mot de passe incorrect"))
+            Err(ApiError::non_authentifie(
+                "E-mail ou mot de passe incorrect",
+            ))
         }
     }
 }

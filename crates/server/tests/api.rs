@@ -45,7 +45,12 @@ async fn appel(
         .await
         .expect("réponse");
     let statut = reponse.status();
-    let octets = reponse.into_body().collect().await.expect("corps").to_bytes();
+    let octets = reponse
+        .into_body()
+        .collect()
+        .await
+        .expect("corps")
+        .to_bytes();
     let json = serde_json::from_slice(&octets).unwrap_or(Value::Null);
     (statut, json)
 }
@@ -160,7 +165,14 @@ async fn routes_protegees_exigent_un_jeton_valide() {
     let app = application();
     let (s, _) = appel(&app, Method::GET, "/api/devoirs", None, None).await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
-    let (s, _) = appel(&app, Method::GET, "/api/devoirs", Some("jeton.invalide.x"), None).await;
+    let (s, _) = appel(
+        &app,
+        Method::GET,
+        "/api/devoirs",
+        Some("jeton.invalide.x"),
+        None,
+    )
+    .await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
 }
 
@@ -193,19 +205,40 @@ async fn devoirs_crud_validation_et_isolation() {
     }
 
     let chemin = format!("/api/devoirs/{id}");
-    let (s, d) = appel(&app, Method::PATCH, &chemin, Some(&a), Some(json!({"statut": "en_cours"}))).await;
+    let (s, d) = appel(
+        &app,
+        Method::PATCH,
+        &chemin,
+        Some(&a),
+        Some(json!({"statut": "en_cours"})),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(d["statut"], "en_cours");
 
     // L'utilisateur B ne voit, ne modifie et ne supprime pas les devoirs de A.
     let (_, liste_b) = appel(&app, Method::GET, "/api/devoirs", Some(&b), None).await;
     assert_eq!(liste_b, json!([]));
-    let (s, _) = appel(&app, Method::PATCH, &chemin, Some(&b), Some(json!({"statut": "termine"}))).await;
+    let (s, _) = appel(
+        &app,
+        Method::PATCH,
+        &chemin,
+        Some(&b),
+        Some(json!({"statut": "termine"})),
+    )
+    .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
     let (s, _) = appel(&app, Method::DELETE, &chemin, Some(&b), None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 
-    let (s, _) = appel(&app, Method::PATCH, "/api/devoirs/abc", Some(&a), Some(json!({}))).await;
+    let (s, _) = appel(
+        &app,
+        Method::PATCH,
+        "/api/devoirs/abc",
+        Some(&a),
+        Some(json!({})),
+    )
+    .await;
     assert_eq!(s, StatusCode::UNPROCESSABLE_ENTITY);
 
     let (s, _) = appel(&app, Method::DELETE, &chemin, Some(&a), None).await;
@@ -240,8 +273,17 @@ async fn import_export_atomique() {
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
 
-    let trop: Vec<Value> = (0..501).map(|i| json!({"titre": format!("T{i}")})).collect();
-    let (s, _) = appel(&app, Method::POST, "/api/devoirs/import", Some(&t), Some(json!(trop))).await;
+    let trop: Vec<Value> = (0..501)
+        .map(|i| json!({"titre": format!("T{i}")}))
+        .collect();
+    let (s, _) = appel(
+        &app,
+        Method::POST,
+        "/api/devoirs/import",
+        Some(&t),
+        Some(json!(trop)),
+    )
+    .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
 
     let (s, export) = appel(&app, Method::GET, "/api/devoirs/export", Some(&t), None).await;
@@ -272,7 +314,14 @@ async fn configuration_secrets_et_ssrf() {
     assert_eq!(v["gemini_key"], "");
     assert!(!v.to_string().contains("CleSecrete"));
 
-    let (_, v) = appel(&app, Method::POST, "/api/config", Some(&t), Some(json!({"remove_gemini_key": true}))).await;
+    let (_, v) = appel(
+        &app,
+        Method::POST,
+        "/api/config",
+        Some(&t),
+        Some(json!({"remove_gemini_key": true})),
+    )
+    .await;
     assert_eq!(v["gemini_configured"], false);
 
     // Liens ADE refusés : non HTTPS, adresse locale ou privée.
@@ -283,7 +332,14 @@ async fn configuration_secrets_et_ssrf() {
         "https://localhost/ics",
         "ftp://ade.example.com/ics",
     ] {
-        let (s, v) = appel(&app, Method::POST, "/api/config", Some(&t), Some(json!({"ade_url": url}))).await;
+        let (s, v) = appel(
+            &app,
+            Method::POST,
+            "/api/config",
+            Some(&t),
+            Some(json!({"ade_url": url})),
+        )
+        .await;
         assert_eq!(s, StatusCode::BAD_REQUEST, "{url} : {v}");
     }
 }
@@ -294,9 +350,23 @@ async fn liste_blanche_ade() {
     settings.ade_allowed_hosts = vec!["univ.example.fr".into()];
     let app = application_avec(settings, Store::en_memoire().expect("base"));
     let t = inscrire(&app, "lb@example.com").await;
-    let (s, _) = appel(&app, Method::POST, "/api/config", Some(&t), Some(json!({"ade_url": "https://autre.example.com/ics"}))).await;
+    let (s, _) = appel(
+        &app,
+        Method::POST,
+        "/api/config",
+        Some(&t),
+        Some(json!({"ade_url": "https://autre.example.com/ics"})),
+    )
+    .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
-    let (s, v) = appel(&app, Method::POST, "/api/config", Some(&t), Some(json!({"ade_url": "https://ade.univ.example.fr/ics?data=x"}))).await;
+    let (s, v) = appel(
+        &app,
+        Method::POST,
+        "/api/config",
+        Some(&t),
+        Some(json!({"ade_url": "https://ade.univ.example.fr/ics?data=x"})),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "{v}");
 }
 
@@ -304,15 +374,36 @@ async fn liste_blanche_ade() {
 async fn sans_lien_ade_emploi_du_temps_vide() {
     let app = application();
     let t = inscrire(&app, "vide@example.com").await;
-    let (s, v) = appel(&app, Method::GET, "/api/cours-du-jour?groupes=1&groupes=2", Some(&t), None).await;
+    let (s, v) = appel(
+        &app,
+        Method::GET,
+        "/api/cours-du-jour?groupes=1&groupes=2",
+        Some(&t),
+        None,
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "{v}");
     assert_eq!(v["nb_cours"], 0);
     assert_eq!(v["hors_ligne"], false);
-    let (s, v) = appel(&app, Method::GET, "/api/cours-semaine?date=2026-10-21", Some(&t), None).await;
+    let (s, v) = appel(
+        &app,
+        Method::GET,
+        "/api/cours-semaine?date=2026-10-21",
+        Some(&t),
+        None,
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(v["date_debut"], "2026-10-19");
     assert_eq!(v["date_fin"], "2026-10-23");
-    let (s, _) = appel(&app, Method::GET, "/api/cours-du-jour?date=pas-une-date", Some(&t), None).await;
+    let (s, _) = appel(
+        &app,
+        Method::GET,
+        "/api/cours-du-jour?date=pas-une-date",
+        Some(&t),
+        None,
+    )
+    .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
     let (s, v) = appel(&app, Method::GET, "/api/config/categories", Some(&t), None).await;
     assert_eq!(s, StatusCode::OK);
@@ -326,11 +417,25 @@ async fn preferences_aller_retour() {
     let (_, v) = appel(&app, Method::GET, "/api/preferences", Some(&t), None).await;
     assert_eq!(v, json!({}));
     let prefs = json!({"theme": "dark", "interface": "classic"});
-    let (s, _) = appel(&app, Method::PUT, "/api/preferences", Some(&t), Some(prefs.clone())).await;
+    let (s, _) = appel(
+        &app,
+        Method::PUT,
+        "/api/preferences",
+        Some(&t),
+        Some(prefs.clone()),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK);
     let (_, v) = appel(&app, Method::GET, "/api/preferences", Some(&t), None).await;
     assert_eq!(v, prefs);
-    let (s, _) = appel(&app, Method::PUT, "/api/preferences", Some(&t), Some(json!([1, 2]))).await;
+    let (s, _) = appel(
+        &app,
+        Method::PUT,
+        "/api/preferences",
+        Some(&t),
+        Some(json!([1, 2])),
+    )
+    .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
 }
 
@@ -356,7 +461,14 @@ async fn faux_gemini(statut: u16, corps: String) -> (String, tokio::task::JoinHa
 async fn plan_simulation_sans_cle() {
     let app = application();
     let t = inscrire(&app, "plan@example.com").await;
-    appel(&app, Method::POST, "/api/devoirs", Some(&t), Some(json!({"titre": "DS maths", "type": "ds", "echeance": "2026-11-05"}))).await;
+    appel(
+        &app,
+        Method::POST,
+        "/api/devoirs",
+        Some(&t),
+        Some(json!({"titre": "DS maths", "type": "ds", "echeance": "2026-11-05"})),
+    )
+    .await;
     let (s, v) = appel(&app, Method::POST, "/api/plan-revision", Some(&t), None).await;
     assert_eq!(s, StatusCode::OK, "{v}");
     assert_eq!(v["mode"], "simulation");
@@ -372,14 +484,25 @@ async fn plan_gemini_simule_utilise_la_cle_dechiffree() {
     settings.gemini_base = base;
     let app = application_avec(settings, Store::en_memoire().expect("base"));
     let t = inscrire(&app, "ia@example.com").await;
-    appel(&app, Method::POST, "/api/config", Some(&t), Some(json!({"gemini_key": "AIzaCleDeTest123456"}))).await;
+    appel(
+        &app,
+        Method::POST,
+        "/api/config",
+        Some(&t),
+        Some(json!({"gemini_key": "AIzaCleDeTest123456"})),
+    )
+    .await;
     let (s, v) = appel(&app, Method::POST, "/api/plan-revision", Some(&t), None).await;
     assert_eq!(s, StatusCode::OK, "{v}");
     assert_eq!(v["mode"], "gemini");
     assert_eq!(v["conseil"], "Courage");
     let requete = tache.await.expect("tâche");
     assert!(requete.contains("x-goog-api-key: aizacledetest123456"));
-    assert!(!requete.lines().next().unwrap_or_default().contains("aizacle"));
+    assert!(!requete
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .contains("aizacle"));
 }
 
 #[tokio::test]
@@ -389,11 +512,21 @@ async fn plan_gemini_en_erreur_repli_en_simulation() {
     settings.gemini_base = base;
     let app = application_avec(settings, Store::en_memoire().expect("base"));
     let t = inscrire(&app, "quota@example.com").await;
-    appel(&app, Method::POST, "/api/config", Some(&t), Some(json!({"gemini_key": "AIzaCleDeTest123456"}))).await;
+    appel(
+        &app,
+        Method::POST,
+        "/api/config",
+        Some(&t),
+        Some(json!({"gemini_key": "AIzaCleDeTest123456"})),
+    )
+    .await;
     let (s, v) = appel(&app, Method::POST, "/api/plan-revision", Some(&t), None).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(v["mode"], "simulation");
-    assert!(v["avertissement"].as_str().unwrap_or_default().contains("Quota"));
+    assert!(v["avertissement"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("Quota"));
     assert!(!v.to_string().contains("AIzaCle"));
 }
 
@@ -402,13 +535,20 @@ async fn en_tetes_de_securite_et_json_invalide() {
     let app = application();
     let rep = app
         .clone()
-        .oneshot(Request::get("/api/health").body(Body::empty()).expect("req"))
+        .oneshot(
+            Request::get("/api/health")
+                .body(Body::empty())
+                .expect("req"),
+        )
         .await
         .expect("rep");
     let h = rep.headers();
     assert_eq!(h["x-content-type-options"], "nosniff");
     assert_eq!(h["x-frame-options"], "DENY");
-    assert!(h["content-security-policy"].to_str().unwrap_or_default().contains("frame-ancestors 'none'"));
+    assert!(h["content-security-policy"]
+        .to_str()
+        .unwrap_or_default()
+        .contains("frame-ancestors 'none'"));
     assert_eq!(h["cache-control"], "no-store");
 
     let req = Request::post("/api/auth/login")
@@ -455,7 +595,14 @@ async fn migration_d_une_base_python_existante() {
     assert_eq!(sauvegardes.len(), 1);
 
     let app = application_avec(Settings::pour_tests(), store);
-    let (s, v) = appel(&app, Method::POST, "/api/auth/login", None, Some(json!({"email": "ancien@example.com", "password": "ancien-mot-de-passe"}))).await;
+    let (s, v) = appel(
+        &app,
+        Method::POST,
+        "/api/auth/login",
+        None,
+        Some(json!({"email": "ancien@example.com", "password": "ancien-mot-de-passe"})),
+    )
+    .await;
     assert_eq!(s, StatusCode::OK, "{v}");
     let t = v["token"].as_str().expect("jeton").to_string();
     let (_, liste) = appel(&app, Method::GET, "/api/devoirs", Some(&t), None).await;
@@ -469,5 +616,10 @@ async fn migration_d_une_base_python_existante() {
     drop(app);
     let store = Store::ouvrir(&chemin).expect("réouverture");
     assert_eq!(store.version().expect("version"), 2);
-    assert_eq!(std::fs::read_dir(dossier.path().join("sauvegardes")).expect("dossier").count(), 1);
+    assert_eq!(
+        std::fs::read_dir(dossier.path().join("sauvegardes"))
+            .expect("dossier")
+            .count(),
+        1
+    );
 }

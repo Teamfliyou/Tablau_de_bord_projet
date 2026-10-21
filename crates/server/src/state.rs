@@ -69,7 +69,9 @@ pub fn verifier_hote(settings: &Settings, url: &str) -> Resultat<()> {
     if autorise {
         Ok(())
     } else {
-        Err(Erreur::Validation("Ce domaine ADE n'est pas autorisé.".into()))
+        Err(Erreur::Validation(
+            "Ce domaine ADE n'est pas autorisé.".into(),
+        ))
     }
 }
 

@@ -1,4 +1,4 @@
-//! Application Tauri : expose le cœur métier (`tdb-core`) au frontend Vue via des commandes IPC.
+//! Application Tauri : expose le cœur métier (`tdb-core`) au frontend Leptos (Rust/WASM) via des commandes IPC.
 //! Aucun serveur HTTP local n'est démarré.
 
 mod coffre;
@@ -171,7 +171,7 @@ fn chrono_jour() -> String {
     tdb_core::ade::aujourdhui().to_string()
 }
 
-pub fn run() {
+pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(fenetre) = app.get_webview_window("main") {
@@ -215,6 +215,6 @@ pub fn run() {
             generer_plan,
             version_application,
         ])
-        .run(tauri::generate_context!())
-        .expect("erreur au lancement de l'application Tableau de bord étudiant");
+        .run(tauri::generate_context!())?;
+    Ok(())
 }

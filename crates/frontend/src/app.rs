@@ -1,0 +1,346 @@
+//! Coquille de l'application : navigation (dock ou barre latérale), onglets, fenêtres modales, notifications.
+
+use crate::api::{self, Mode};
+use crate::icons::Icone;
+use crate::pages::auth::Authentification;
+use crate::pages::config::Configuration;
+use crate::pages::dashboard::Dashboard;
+use crate::pages::kanban::Kanban;
+use crate::pages::semaine::Semaine;
+use crate::state::{Etat, Onglet, StyleNav, COLONNES, TYPES_DEVOIR};
+use crate::ui::*;
+use crate::util;
+use gloo_timers::callback::Interval;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
+use tdb_shared::{ConfigUpdate, Devoir, DevoirModification};
+
+#[component]
+pub fn App() -> impl IntoView {
+    let etat = Etat::nouveau(api::mode());
+    provide_context(etat);
+
+    // Une session mémorisée n'est acceptée qu'une fois validée par le serveur.
+    if etat.mode == Mode::Web && etat.authentifie.get_untracked() {
+        spawn_local(async move {
+            if !api::profil_valide().await {
+                api::oublier_jeton();
+                etat.authentifie.set(false);
+            }
+        });
+    }
+
+    // Chargement des données dès que l'utilisateur est authentifié (immédiat dans l'application Windows).
+    let demarre = RwSignal::new(false);
+    Effect::new(move |_| {
+        if etat.authentifie.get() && !demarre.get_untracked() {
+            demarre.set(true);
+            etat.demarrer();
+        } else if !etat.authentifie.get() {
+            demarre.set(false);
+        }
+    });
+
+    // Actualisation automatique toutes les 60 secondes ; horloge toutes les 30 secondes.
+    Interval::new(60_000, move || etat.charger_cours(true)).forget();
+    Interval::new(30_000, move || etat.heure.set(util::heure_actuelle())).forget();
+    util::surveiller_theme_systeme(move || etat.appliquer_theme());
+    etat.appliquer_theme();
+
+    view! {
+        {move || if etat.authentifie.get() {
+            view! { <Application /> }.into_any()
+        } else {
+            view! { <Authentification /> }.into_any()
+        }}
+    }
+}
+
+#[component]
+fn Application() -> impl IntoView {
+    let etat = expect_context::<Etat>();
+    let classic = move || etat.style_nav.get() == StyleNav::Classic;
+    let identifiant = move || {
+        let u = etat.config.get().username;
+        if u.is_empty() {
+            "Étudiant".to_string()
+        } else {
+            u
+        }
+    };
+    let date_jour = util::date_longue(&js_sys::Date::new_0());
+    let pied = if etat.mode == Mode::Web {
+        "Emploi du temps ADE · Devoirs · Génération IA à la demande · Application Web"
+    } else {
+        "Emploi du temps ADE · Devoirs · Génération IA à la demande · Application locale hors ligne"
+    };
+
+    view! {
+        <div id="app" class="min-h-screen">
+            // ---- Sidebar classique
+            {move || classic().then(|| view! {
+                <aside class="hidden lg:flex fixed inset-y-0 left-0 w-64 flex-col bg-white/60 backdrop-blur-2xl border-r border-white/40 px-4 py-8">
+                    <div class="flex items-center gap-3 px-2">
+                        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                            <Icone nom="mortarboard" class="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h1 class="text-lg font-bold text-slate-900 leading-tight">"Tableau de bord"</h1>
+                            <p class="text-xs text-slate-500">{identifiant}</p>
+                        </div>
+                    </div>
+                    <nav class="mt-10 space-y-1.5 flex-1">
+                        {Onglet::TOUS.iter().map(|o| {
+                            let o = *o;
+                            view! {
+                                <button
+                                    class=move || format!("w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition {}",
+                                        if etat.onglet.get() == o { "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/30" } else { "text-slate-500 hover:bg-white/60 hover:text-slate-800" })
+                                    on:click=move |_| etat.onglet.set(o)>
+                                    <Icone nom=o.icone() class="w-5 h-5 shrink-0" />
+                                    {o.libelle()}
+                                </button>
+                            }
+                        }).collect_view()}
+                    </nav>
+                    <div class="pt-4 border-t border-white/40 px-2">
+                        <p class="text-xs text-slate-400">{date_jour.clone()}</p>
+                    </div>
+                    <button type="button" class="mt-4 w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-white/60 hover:text-slate-800 transition"
+                        on:click=move |_| etat.basculer_theme()>
+                        <Icone nom="moon" class="w-5 h-5 shrink-0" />
+                        {move || if etat.theme_sombre() { "Mode clair" } else { "Mode sombre" }}
+                    </button>
+                </aside>
+                <div class="lg:hidden sticky top-0 z-30 bg-white/60 backdrop-blur-xl border-b border-white/40 px-3 py-2 flex gap-1.5 overflow-x-auto">
+                    {Onglet::TOUS.iter().map(|o| {
+                        let o = *o;
+                        view! {
+                            <button
+                                class=move || format!("shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition {}",
+                                    if etat.onglet.get() == o { "bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm" } else { "bg-white/60 text-slate-600" })
+                                on:click=move |_| etat.onglet.set(o)>
+                                <Icone nom=o.icone() class="w-5 h-5 shrink-0" />
+                                <span>{o.libelle()}</span>
+                            </button>
+                        }
+                    }).collect_view()}
+                </div>
+            })}
+
+            // ---- Dock de navigation (par défaut)
+            {move || (!classic()).then(|| view! {
+                <nav class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 sm:gap-1 p-1 sm:p-1.5 rounded-full bg-white/30 backdrop-blur-xl border border-white/20 shadow-2xl shadow-indigo-900/10">
+                    {Onglet::TOUS.iter().map(|o| {
+                        let o = *o;
+                        view! {
+                            <button
+                                title=o.libelle()
+                                class=move || format!("relative flex flex-col items-center justify-center gap-1 px-2 sm:px-4 py-2 sm:py-2.5 rounded-full transition-all duration-300 {}",
+                                    if etat.onglet.get() == o { "text-white" } else { "text-slate-500 hover:text-slate-800" })
+                                on:click=move |_| etat.onglet.set(o)>
+                                {move || (etat.onglet.get() == o).then(|| view! {
+                                    <span class="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 dock-active" aria-hidden="true"></span>
+                                })}
+                                <Icone nom=o.icone() class="relative w-6 h-6 shrink-0" />
+                                <span class="relative text-[9px] sm:text-[10px] font-semibold leading-none whitespace-nowrap">{o.libelle()}</span>
+                            </button>
+                        }
+                    }).collect_view()}
+                    <span class="w-px h-8 bg-white/40 mx-1 sm:mx-2 hidden sm:block" aria-hidden="true"></span>
+                    <button type="button"
+                        title=move || if etat.theme_sombre() { "Passer en mode clair" } else { "Passer en mode sombre" }
+                        class="relative flex flex-col items-center justify-center gap-1 px-2 sm:px-4 py-2 sm:py-2.5 rounded-full transition-all duration-300 text-slate-500 hover:text-slate-800"
+                        on:click=move |_| etat.basculer_theme()>
+                        <Icone nom="moon" class="relative w-6 h-6 shrink-0" />
+                        <span class="relative text-[9px] sm:text-[10px] font-semibold leading-none whitespace-nowrap">{move || if etat.theme_sombre() { "Clair" } else { "Sombre" }}</span>
+                    </button>
+                </nav>
+            })}
+
+            // ---- Contenu
+            <main class=move || format!("flex-1 px-4 sm:px-6 lg:px-10 pt-10 sm:pt-14 {}", if classic() { "lg:ml-64 pb-16" } else { "pb-28" })>
+                {move || match etat.onglet.get() {
+                    Onglet::Dashboard => view! { <Dashboard /> }.into_any(),
+                    Onglet::Semaine => view! { <Semaine /> }.into_any(),
+                    Onglet::Devoirs => view! { <Kanban /> }.into_any(),
+                    Onglet::Config => view! { <Configuration /> }.into_any(),
+                }}
+                <footer class="max-w-7xl mx-auto mt-14">
+                    <p class="text-xs text-slate-400 text-center">{pied}</p>
+                </footer>
+            </main>
+
+            {move || etat.onboarding_visible.get().then(|| view! { <Onboarding /> })}
+            {move || etat.edition.get().map(|d| view! { <EditionDevoir devoir=d /> })}
+            {move || { let t = etat.toast.get(); (!t.is_empty()).then(|| view! {
+                <div class="fixed top-5 right-5 z-[70] max-w-sm rounded-2xl bg-slate-900/90 text-white text-sm px-4 py-3 shadow-xl backdrop-blur">{t}</div>
+            }) }}
+        </div>
+    }
+}
+
+/// Première configuration : lien ADE (obligatoire) et clé Gemini (facultative).
+#[component]
+fn Onboarding() -> impl IntoView {
+    let etat = expect_context::<Etat>();
+    let ade = RwSignal::new(String::new());
+    let cle = RwSignal::new(String::new());
+    let erreur = RwSignal::new(String::new());
+    let en_cours = RwSignal::new(false);
+
+    let ignorer = move || {
+        etat.onboarding_ignore.set(true);
+        etat.onboarding_visible.set(false);
+    };
+
+    let valider = move |ev: leptos::ev::SubmitEvent| {
+        ev.prevent_default();
+        spawn_local(async move {
+            en_cours.set(true);
+            erreur.set(String::new());
+            let url = ade.get_untracked().trim().to_string();
+            if url.is_empty() {
+                erreur.set("Renseigne ton lien ADE pour continuer.".into());
+                en_cours.set(false);
+                return;
+            }
+            let c = etat.config.get_untracked();
+            let maj = ConfigUpdate {
+                username: c.username,
+                ade_url: url,
+                gemini_key: Some(cle.get_untracked().trim().to_string()).filter(|k| !k.is_empty()),
+                gemini_model: Some(c.gemini_model).filter(|m| !m.is_empty()),
+                remove_gemini_key: false,
+            };
+            match etat.enregistrer_config(maj).await {
+                Ok(()) => etat.onboarding_visible.set(false),
+                Err(e) => erreur.set(e),
+            }
+            en_cours.set(false);
+        });
+    };
+
+    view! {
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" on:click=move |_| ignorer()></div>
+            <div class="relative w-full max-w-lg bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-2xl p-6 sm:p-8">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 shrink-0">
+                        <Icone nom="bolt" class="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900">
+                            {move || { let u = etat.config.get().username; format!("Bienvenue, {} !", if u.is_empty() { "étudiant".to_string() } else { u }) }}
+                        </h3>
+                        <p class="text-sm text-slate-500">"Terminons la configuration en 30 secondes."</p>
+                    </div>
+                </div>
+                <form class="mt-6 space-y-4" on:submit=valider>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">"Lien d'export iCal / ADE " <span class="text-rose-500">"*"</span></label>
+                        <input class=CHAMP_MONO type="url" required placeholder="https://ton-ecole.example.com/ade/ics?data=…"
+                            prop:value=move || ade.get() on:input=move |ev| ade.set(event_target_value(&ev)) />
+                        <p class="text-xs text-slate-400 mt-1.5">"Indispensable pour afficher ton emploi du temps. Trouvé dans ton application ADE : Emploi du temps → Export / iCal."</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">"Clé API Gemini " <span class="text-slate-400">"(optionnel)"</span></label>
+                        <input class=CHAMP_MONO type="password" autocomplete="off" placeholder="AIza…"
+                            prop:value=move || cle.get() on:input=move |ev| cle.set(event_target_value(&ev)) />
+                        <p class="text-xs text-slate-400 mt-1.5">"Gratuite sur " <span class="font-medium">"https://aistudio.google.com/apikey"</span> ". Sans clé, le plan de révision fonctionne en mode simulation."</p>
+                    </div>
+                    {move || { let m = erreur.get(); (!m.is_empty()).then(|| view! { <p class="rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-3.5">{m}</p> }) }}
+                    <div class="flex flex-wrap items-center gap-3">
+                        <button type="submit" class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition" prop:disabled=move || en_cours.get()>
+                            {move || if en_cours.get() { "Enregistrement…" } else { "Commencer" }}
+                        </button>
+                        <button type="button" class="px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-700 transition" on:click=move |_| ignorer()>"Plus tard"</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+}
+
+/// Fenêtre de modification d'un devoir.
+#[component]
+fn EditionDevoir(devoir: Devoir) -> impl IntoView {
+    let etat = expect_context::<Etat>();
+    let id = devoir.id;
+    let titre = RwSignal::new(devoir.titre);
+    let matiere = RwSignal::new(devoir.matiere);
+    let echeance = RwSignal::new(devoir.echeance);
+    let type_ = RwSignal::new(devoir.type_);
+    let statut = RwSignal::new(devoir.statut);
+    let erreur = RwSignal::new(String::new());
+    let en_cours = RwSignal::new(false);
+    let fermer = move || etat.edition.set(None);
+
+    let enregistrer = move |ev: leptos::ev::SubmitEvent| {
+        ev.prevent_default();
+        spawn_local(async move {
+            en_cours.set(true);
+            erreur.set(String::new());
+            let m = DevoirModification {
+                titre: Some(titre.get_untracked()),
+                matiere: Some(matiere.get_untracked()),
+                echeance: Some(echeance.get_untracked()),
+                type_: Some(type_.get_untracked()),
+                statut: Some(statut.get_untracked()),
+            };
+            match api::modifier_devoir(id, &m).await {
+                Ok(_) => {
+                    etat.edition.set(None);
+                    etat.charger_devoirs_async().await;
+                }
+                Err(e) => erreur.set(etat.message(e)),
+            }
+            en_cours.set(false);
+        });
+    };
+
+    let champ = "w-full rounded-xl border border-white/50 bg-white/60 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
+    view! {
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" on:click=move |_| fermer()></div>
+            <div class="relative w-full max-w-lg bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-2xl p-6 sm:p-8">
+                <h3 class="text-lg font-bold text-slate-900">"Modifier le devoir"</h3>
+                <form class="mt-5 space-y-4" on:submit=enregistrer>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1.5">"Titre"</label>
+                        <input class=champ type="text" required maxlength="200" prop:value=move || titre.get() on:input=move |ev| titre.set(event_target_value(&ev)) />
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1.5">"Matière"</label>
+                            <input class=champ type="text" maxlength="120" prop:value=move || matiere.get() on:input=move |ev| matiere.set(event_target_value(&ev)) />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1.5">"Échéance"</label>
+                            <input class=champ type="date" prop:value=move || echeance.get() on:input=move |ev| echeance.set(event_target_value(&ev)) />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1.5">"Type"</label>
+                            <select class=champ prop:value=move || type_.get() on:change=move |ev| type_.set(event_target_value(&ev))>
+                                {TYPES_DEVOIR.iter().map(|(id, l)| view! { <option value=*id>{*l}</option> }).collect_view()}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1.5">"Statut"</label>
+                            <select class=champ prop:value=move || statut.get() on:change=move |ev| statut.set(event_target_value(&ev))>
+                                {COLONNES.iter().map(|(id, l, _)| view! { <option value=*id>{*l}</option> }).collect_view()}
+                            </select>
+                        </div>
+                    </div>
+                    {move || { let m = erreur.get(); (!m.is_empty()).then(|| view! { <p class="rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-3.5">{m}</p> }) }}
+                    <div class="flex items-center gap-3">
+                        <button type="submit" class="flex-1 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition" prop:disabled=move || en_cours.get()>
+                            {move || if en_cours.get() { "Enregistrement…" } else { "Enregistrer" }}
+                        </button>
+                        <button type="button" class="px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-700 transition" on:click=move |_| fermer()>"Annuler"</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+}

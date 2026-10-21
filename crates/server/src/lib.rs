@@ -66,10 +66,9 @@ async fn pas_de_cache_api(req: Request, next: Next) -> Response {
     let api = req.uri().path().starts_with("/api");
     let mut reponse = next.run(req).await;
     if api {
-        reponse.headers_mut().insert(
-            header::CACHE_CONTROL,
-            HeaderValue::from_static("no-store"),
-        );
+        reponse
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     }
     reponse
 }
@@ -91,7 +90,10 @@ pub fn router(state: AppState) -> Router {
     let entetes: [(HeaderName, String); 5] = [
         (header::X_CONTENT_TYPE_OPTIONS, "nosniff".into()),
         (header::X_FRAME_OPTIONS, "DENY".into()),
-        (header::REFERRER_POLICY, "strict-origin-when-cross-origin".into()),
+        (
+            header::REFERRER_POLICY,
+            "strict-origin-when-cross-origin".into(),
+        ),
         (
             HeaderName::from_static("permissions-policy"),
             "camera=(), microphone=(), geolocation=()".into(),

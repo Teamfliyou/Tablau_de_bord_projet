@@ -1,31 +1,47 @@
 # ============================================================
-#  Tableau de bord étudiant — Image Docker
-#  Backend FastAPI + frontend statique servis sur un seul port.
+#  Tableau de bord étudiant — image Docker (100 % Rust)
+#  Axum (API + fichiers statiques) + frontend Leptos compilé en WebAssembly.
+#  Aucun Python ni Node.js, ni à la compilation ni à l'exécution.
 # ============================================================
 
-FROM python:3.11-slim
+# ---- 1) Frontend : Rust → WebAssembly (Trunk) ------------------------------
+FROM rust:1-bookworm AS frontend
+RUN rustup target add wasm32-unknown-unknown \
+    && cargo install trunk --locked
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY src-tauri/Cargo.toml src-tauri/Cargo.toml
+# Les crates du workspace non nécessaires ici sont réduites à des coquilles pour résoudre le workspace.
+RUN mkdir -p src-tauri/src && echo "" > src-tauri/src/lib.rs
+WORKDIR /src/crates/frontend
+RUN trunk build --release
 
-# Évite les fichiers .pyc et garde les logs en temps réel
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PYTHONPATH=/app \
-    DATABASE_URL=sqlite:////app/backend/app.db
+# ---- 2) Serveur : Rust natif ----------------------------------------------
+FROM rust:1-bookworm AS serveur
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY src-tauri/Cargo.toml src-tauri/Cargo.toml
+RUN mkdir -p src-tauri/src && echo "" > src-tauri/src/lib.rs
+RUN cargo build --release --locked -p tdb-server
 
-WORKDIR /app
-
-# 1) Dépendances d'abord (meilleur cache Docker)
-COPY backend/requirements.txt backend/requirements.txt
-RUN pip install --no-cache-dir -r backend/requirements.txt
-
-# 2) Code applicatif
-COPY backend/ backend/
-COPY frontend/ frontend/
-
-# 3) Port de l'API + du frontend (servi par FastAPI).
-#    Cloud Run injecte $PORT (par défaut 8080) ; fallback local à 8000.
+# ---- 3) Image finale -------------------------------------------------------
+FROM debian:bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --home-dir /data tdb \
+    && mkdir -p /data /app && chown tdb /data
+COPY --from=serveur /src/target/release/tdb-server /app/tdb-server
+COPY --from=frontend /src/crates/frontend/dist /app/frontend-dist
+ENV FRONTEND_DIR=/app/frontend-dist \
+    DATABASE_PATH=/data/tableau-de-bord.db \
+    PORT=8000 \
+    RUST_LOG=info
+USER tdb
+VOLUME ["/data"]
 EXPOSE 8000
-
-# 4) Lancement : API + SPA en un seul processus.
-#    Forme shell (plutôt que exec) pour interpoler ${PORT:-8000}.
-CMD uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS "http://127.0.0.1:${PORT}/api/health" || exit 1
+CMD ["/app/tdb-server"]

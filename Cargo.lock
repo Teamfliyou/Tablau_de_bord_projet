@@ -4738,7 +4738,7 @@ dependencies = [
 
 [[package]]
 name = "tableau-de-bord-etudiant"
-version = "4.0.0"
+version = "4.1.0"
 dependencies = [
  "keyring",
  "log",
@@ -5152,7 +5152,7 @@ dependencies = [
 
 [[package]]
 name = "tdb-core"
-version = "4.0.0"
+version = "4.1.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -5171,7 +5171,7 @@ dependencies = [
 
 [[package]]
 name = "tdb-frontend"
-version = "4.0.0"
+version = "4.1.0"
 dependencies = [
  "futures-channel",
  "gloo-net",
@@ -5188,7 +5188,7 @@ dependencies = [
 
 [[package]]
 name = "tdb-server"
-version = "4.0.0"
+version = "4.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -5215,7 +5215,7 @@ dependencies = [
 
 [[package]]
 name = "tdb-shared"
-version = "4.0.0"
+version = "4.1.0"
 dependencies = [
  "chrono",
  "serde",

@@ -7,7 +7,7 @@
 # ---- 1) Frontend : Rust → WebAssembly (Trunk) ------------------------------
 FROM rust:1-bookworm AS frontend
 RUN rustup target add wasm32-unknown-unknown \
-    && cargo install trunk --locked
+    && cargo install trunk --version 0.22.0 --locked
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates

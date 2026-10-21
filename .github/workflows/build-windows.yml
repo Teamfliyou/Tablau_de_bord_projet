@@ -42,7 +42,7 @@ jobs:
       - name: Installer Trunk et cargo-binstall
         uses: taiki-e/install-action@v2
         with:
-          tool: trunk,cargo-binstall
+          tool: trunk@0.22.0,cargo-binstall
 
       - name: Installer la CLI Tauri 2
         run: cargo binstall tauri-cli --version "^2" --no-confirm --locked

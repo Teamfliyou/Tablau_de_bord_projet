@@ -50,7 +50,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
-          tool: trunk
+          tool: trunk@0.22.0
       - name: Clippy (cible WebAssembly)
         run: cargo clippy -p tdb-frontend --target wasm32-unknown-unknown --locked -- -D warnings
       - name: Compiler le frontend

@@ -5,3 +5,8 @@ dist = "dist"
 [serve]
 port = 1420
 address = "127.0.0.1"
+
+# Outils épinglés : même résultat en local, en CI et dans Docker.
+[tools]
+tailwindcss = "4.3.3"
+wasm_opt = "version_131"

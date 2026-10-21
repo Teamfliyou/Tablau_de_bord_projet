@@ -2,7 +2,9 @@
 
 Dashboard personnel **Full-Stack** pour visualiser son emploi du temps en temps réel (flux iCal ADE Campus), gérer ses devoirs via un tableau Kanban et bénéficier d'un **plan de révision intelligent** généré par IA (Google Gemini).
 
-> **Stack** : **FastAPI** (backend Python) + **Vue.js 3 / Tailwind CSS** (frontend sans build Node.js) + **SQLite / SQLAlchemy** (stockage local) + **Gemini** (génération de plans de révision).
+> 🖥️ **Nouveau — application Windows autonome (Rust + Tauri)** : un `.exe` portable ou un installateur, sans Python ni navigateur. Téléchargement depuis *Actions → Build Windows (Tauri) → Artifacts* ou *Releases*. Voir **[docs/APPLICATION_WINDOWS.md](docs/APPLICATION_WINDOWS.md)** (installation, migration des données, compilation). La version Python ci-dessous reste disponible.
+
+> **Stack (version Python)** : **FastAPI** (backend Python) + **Vue.js 3 / Tailwind CSS** (frontend sans build Node.js) + **SQLite / SQLAlchemy** (stockage local) + **Gemini** (génération de plans de révision).
 
 ---
 

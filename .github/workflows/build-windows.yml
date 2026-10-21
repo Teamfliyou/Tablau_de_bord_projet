@@ -1,0 +1,167 @@
+name: Build Windows (Tauri)
+
+# Compile l'application de bureau Windows : .exe portable + installateur NSIS.
+# - push / pull request : tests, compilation, artifacts téléchargeables
+# - tag vX.Y.Z : publie en plus une GitHub Release avec les deux fichiers
+
+on:
+  push:
+    branches: ["main", "feature/rust-tauri-desktop"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  APP_DATA_ID: fr.teamfliyou.tableaudebord
+
+jobs:
+  build:
+    name: Tests et compilation Windows
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Installer les dépendances npm (verrouillées)
+        run: npm ci
+
+      - name: Compiler le frontend Vue
+        run: npm run build
+
+      - name: Format Rust
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (aucun avertissement toléré)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Tests Rust
+        run: cargo test --workspace --locked
+
+      - name: Compiler l'application (release) et l'installateur NSIS
+        run: npx tauri build --bundles nsis
+
+      - name: Rassembler les exécutables
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item target/release/TableauDeBordEtudiant.exe release/TableauDeBordEtudiant.exe
+          $setup = Get-ChildItem target/release/bundle/nsis -Filter *.exe | Select-Object -First 1
+          if (-not $setup) { throw "Installateur NSIS introuvable" }
+          Copy-Item $setup.FullName "release/TableauDeBordEtudiant-Setup-$version.exe"
+          Get-ChildItem release | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)" | Out-File -Append -Encoding ascii release/SHA256SUMS.txt
+            Write-Host ("{0}  {1:N1} Mo" -f $_.Name, ($_.Length / 1MB))
+          }
+
+      - name: Test de lancement du .exe portable
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path release/TableauDeBordEtudiant.exe).Path
+          $p = Start-Process $exe -PassThru
+          Start-Sleep -Seconds 15
+          if ($p.HasExited) { throw "L'application s'est arrêtée au démarrage (code $($p.ExitCode))" }
+          $p.Refresh()
+          Write-Host "Fenêtre : '$($p.MainWindowTitle)'"
+          $db = Join-Path $env:APPDATA "$env:APP_DATA_ID/tableau-de-bord.db"
+          if (-not (Test-Path $db)) { throw "Base SQLite non créée dans $db" }
+          Write-Host "Base SQLite créée : $db"
+          try {
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("$PWD/release-capture.png")
+          } catch { Write-Host "Capture d'écran indisponible : $_" }
+          Stop-Process -Id $p.Id -Force
+
+      - name: Test de l'installateur (installation silencieuse, raccourcis, désinstallation)
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem release -Filter "*-Setup-*.exe" | Select-Object -First 1).FullName
+          Start-Process $setup -ArgumentList "/S" -Wait
+          $installe = Get-ChildItem $env:LOCALAPPDATA -Recurse -Filter TableauDeBordEtudiant.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $installe) { throw "Application non installée" }
+          Write-Host "Installée dans : $($installe.DirectoryName)"
+          $lnk = @(
+            Get-ChildItem ([Environment]::GetFolderPath('Desktop')) -Filter *.lnk -ErrorAction SilentlyContinue
+            Get-ChildItem "$env:APPDATA/Microsoft/Windows/Start Menu/Programs" -Recurse -Filter *.lnk -ErrorAction SilentlyContinue
+          ) | Where-Object { $_.Name -like "Tableau*" }
+          $lnk | ForEach-Object { Write-Host "Raccourci : $($_.FullName)" }
+          if (-not ($lnk | Where-Object { $_.FullName -like "*Desktop*" })) { Write-Warning "Raccourci bureau non trouvé" }
+          if (-not ($lnk | Where-Object { $_.FullName -like "*Start Menu*" })) { throw "Raccourci du menu Démarrer manquant" }
+          $p = Start-Process $installe.FullName -PassThru
+          Start-Sleep -Seconds 12
+          if ($p.HasExited) { throw "L'application installée s'est arrêtée (code $($p.ExitCode))" }
+          Stop-Process -Id $p.Id -Force
+          Start-Sleep -Seconds 2
+          $uninstall = Join-Path $installe.DirectoryName "uninstall.exe"
+          Start-Process $uninstall -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 3
+          if (Test-Path $installe.FullName) { throw "Désinstallation incomplète" }
+          $db = Join-Path $env:APPDATA "$env:APP_DATA_ID/tableau-de-bord.db"
+          if (-not (Test-Path $db)) { throw "Les données utilisateur ont été supprimées à la désinstallation" }
+          Write-Host "Désinstallation propre, données utilisateur conservées."
+
+      - name: Publier les exécutables (artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: TableauDeBordEtudiant-windows
+          path: |
+            release/TableauDeBordEtudiant.exe
+            release/TableauDeBordEtudiant-Setup-*.exe
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Capture d'écran du test de lancement
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capture-lancement
+          path: release-capture.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release:
+    name: Publier la GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: TableauDeBordEtudiant-windows
+          path: release
+      - name: Créer la release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" release/* \
+            --repo "${{ github.repository }}" \
+            --title "Tableau de bord étudiant ${{ github.ref_name }}" \
+            --generate-notes

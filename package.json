@@ -1,0 +1,25 @@
+{
+  "name": "tableau-de-bord-etudiant",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tableau de bord étudiant — application de bureau Windows (Tauri 2 + Rust + Vue 3)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@vitejs/plugin-vue": "^5.2.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "vite": "^6.0.0"
+  }
+}

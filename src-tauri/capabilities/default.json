@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Fenêtre principale : commandes applicatives uniquement, sans accès disque ni réseau côté interface.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

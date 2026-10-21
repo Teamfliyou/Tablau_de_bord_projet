@@ -1,0 +1,22 @@
+[package]
+name = "tdb-core"
+version = "4.0.0"
+edition = "2021"
+description = "Logique métier du Tableau de bord étudiant (SQLite, ADE, Kanban, Gemini)"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+chrono-tz = "0.10"
+ical = { version = "0.11", default-features = false, features = ["ical"] }
+regex = "1"
+url = "2"
+tokio = { version = "1", features = ["net", "time", "rt", "macros", "sync"] }
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
+log = "0.4"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["io-util", "net", "rt-multi-thread", "macros"] }

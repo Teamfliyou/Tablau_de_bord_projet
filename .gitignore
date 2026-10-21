@@ -62,3 +62,12 @@ Thumbs.db
 *.log
 logs/
 tmp/
+
+# ==========================
+#  Application de bureau (Tauri / Rust / Node)
+# ==========================
+node_modules/
+/target/
+src-tauri/gen/
+release/
+release-capture.png

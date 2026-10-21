@@ -21,15 +21,7 @@ set "SORTIE=release\TableauDeBord-Web"
 if not exist "%SORTIE%" mkdir "%SORTIE%"
 copy /y "target\release\tdb-server.exe" "%SORTIE%\TableauDeBord.exe" >nul
 xcopy /e /i /y /q "crates\frontend\dist" "%SORTIE%\frontend-dist" >nul
-(
-  echo @echo off
-  echo cd /d "%%~dp0"
-  echo set FRONTEND_DIR=%%~dp0frontend-dist
-  echo set DATABASE_PATH=%%~dp0data\tableau-de-bord.db
-  echo start "" /b cmd /c "timeout /t 3 /nobreak ^>nul ^& start http://localhost:8000"
-  echo TableauDeBord.exe
-  echo pause
-) > "%SORTIE%\Lancer.bat"
+copy /y "scriptsLancer-modele.bat" "%SORTIE%Lancer.bat" >nul
 
 echo.
 echo Termine : %CD%\%SORTIE%

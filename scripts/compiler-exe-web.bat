@@ -21,7 +21,7 @@ set "SORTIE=release\TableauDeBord-Web"
 if not exist "%SORTIE%" mkdir "%SORTIE%"
 copy /y "target\release\tdb-server.exe" "%SORTIE%\TableauDeBord.exe" >nul
 xcopy /e /i /y /q "crates\frontend\dist" "%SORTIE%\frontend-dist" >nul
-copy /y "scriptsLancer-modele.bat" "%SORTIE%Lancer.bat" >nul
+copy /y "scripts\Lancer-modele.bat" "%SORTIE%\Lancer.bat" >nul
 
 echo.
 echo Termine : %CD%\%SORTIE%

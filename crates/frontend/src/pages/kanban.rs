@@ -107,7 +107,7 @@ pub fn Kanban() -> impl IntoView {
                         etat.devoirs.get().into_iter().filter(|d| d.statut == id).collect::<Vec<Devoir>>()
                     };
                     view! {
-                        <div class=format!("rounded-3xl border border-white/40 bg-white/60 backdrop-blur-2xl shadow-lg shadow-indigo-500/5 p-4 flex flex-col")>
+                        <div class="rounded-3xl border border-white/40 bg-white/60 backdrop-blur-2xl shadow-lg shadow-indigo-500/5 p-4 flex flex-col">
                             <div class="flex items-center justify-between px-1">
                                 <span class=format!("inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold {badge}")>
                                     <Icone nom="dot" class="w-4 h-4" />

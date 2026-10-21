@@ -52,10 +52,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/api/devoirs/{id}/tags", put(definir_tags_devoir))
         .route("/api/tags", get(lister_tags).post(creer_tag))
-        .route(
-            "/api/tags/{id}",
-            put(modifier_tag).delete(supprimer_tag),
-        )
+        .route("/api/tags/{id}", put(modifier_tag).delete(supprimer_tag))
         .route("/api/plan-revision", post(plan_revision))
 }
 

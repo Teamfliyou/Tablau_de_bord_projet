@@ -7,8 +7,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::{json, Value};
 use tdb_shared::{
-    Categories, Config, ConfigUpdate, Cours, Devoir, DevoirEntree, DevoirModification, Filtres, Tag,
-    Plan,
+    Categories, Config, ConfigUpdate, Cours, Devoir, DevoirEntree, DevoirModification, Filtres,
+    Plan, Tag,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]

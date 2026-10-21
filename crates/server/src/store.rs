@@ -545,12 +545,7 @@ impl Store {
     }
 
     /// Remplace l'ensemble des tags d'un devoir de l'utilisateur (transaction).
-    pub fn definir_tags_devoir(
-        &self,
-        user_id: i64,
-        id: i64,
-        tags: Vec<i64>,
-    ) -> Resultat<Devoir> {
+    pub fn definir_tags_devoir(&self, user_id: i64, id: i64, tags: Vec<i64>) -> Resultat<Devoir> {
         if tags.len() > TAGS_PAR_DEVOIR_MAX {
             return Err(Erreur::Validation(
                 "Un devoir ne peut pas avoir plus de 20 tags.".into(),

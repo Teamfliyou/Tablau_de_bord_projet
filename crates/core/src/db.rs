@@ -640,9 +640,8 @@ fn inserer_devoir(conn: &Connection, e: &DevoirEntree) -> rusqlite::Result<i64> 
             "INSERT OR IGNORE INTO tags (nom, couleur) VALUES (?1, ?2)",
             params![t.nom, t.couleur],
         )?;
-        let tag_id: i64 = conn.query_row("SELECT id FROM tags WHERE nom = ?1", [&t.nom], |r| {
-            r.get(0)
-        })?;
+        let tag_id: i64 =
+            conn.query_row("SELECT id FROM tags WHERE nom = ?1", [&t.nom], |r| r.get(0))?;
         conn.execute(
             "INSERT OR IGNORE INTO devoir_tags (devoir_id, tag_id) VALUES (?1, ?2)",
             params![id, tag_id],
@@ -908,7 +907,9 @@ mod tests {
                 couleur: "#123456".into(),
             })
             .unwrap();
-        let m = db.definir_tags_devoir(d.id, vec![cm.id, urgent.id]).unwrap();
+        let m = db
+            .definir_tags_devoir(d.id, vec![cm.id, urgent.id])
+            .unwrap();
         assert_eq!(m.tags.len(), 2);
         let m = db.definir_tags_devoir(d.id, vec![urgent.id]).unwrap();
         assert_eq!(m.tags, vec![urgent.clone()]);

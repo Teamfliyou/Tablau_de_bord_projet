@@ -1,12 +1,12 @@
 //! Onglet Devoirs : formulaire d'ajout, tableau Kanban, import / export JSON.
 
+use crate::api;
 use crate::icons::Icone;
 use crate::state::{
     couleur_echeance, libelle_echeance, type_badge, type_libelle, Etat, COLONNES, TYPES_DEVOIR,
 };
 use crate::ui::*;
 use leptos::prelude::*;
-use crate::api;
 use leptos::task::spawn_local;
 use tdb_shared::{Devoir, DevoirEntree, Tag, TagEntree};
 

@@ -8,8 +8,8 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use tdb_shared::{
     Categories, Config, ConfigUpdate, Connexion, CoursDuJourEtat, CoursSemaineEtat, Devoir,
-    DevoirEntree, DevoirModification, Filtres, Inscription, Plan, RapportMigration, ReponseAuth, Tag,
-    TagEntree,
+    DevoirEntree, DevoirModification, Filtres, Inscription, Plan, RapportMigration, ReponseAuth,
+    Tag, TagEntree,
 };
 use wasm_bindgen::prelude::*;
 

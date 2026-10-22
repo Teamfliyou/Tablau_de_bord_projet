@@ -8,7 +8,7 @@ use leptos::task::spawn_local;
 use serde_json::{json, Value};
 use tdb_shared::{
     Categories, Config, ConfigUpdate, Cours, Devoir, DevoirEntree, DevoirModification, Filtres,
-    Plan, Tag,
+    InfoMiseAJour, Plan, Tag,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -92,6 +92,12 @@ pub struct Etat {
     pub heure: RwSignal<String>,
     pub toast: RwSignal<String>,
     pub version: RwSignal<String>,
+    // Mise à jour (Windows)
+    pub maj_info: RwSignal<Option<InfoMiseAJour>>,
+    pub maj_fenetre: RwSignal<bool>,
+    pub maj_verification: RwSignal<bool>,
+    pub maj_message: RwSignal<String>,
+    pub maj_erreur: RwSignal<String>,
     // Emploi du temps
     pub cours: RwSignal<Vec<Cours>>,
     pub chargement_cours: RwSignal<bool>,
@@ -136,6 +142,11 @@ impl Etat {
             heure: RwSignal::new(util::heure_actuelle()),
             toast: RwSignal::new(String::new()),
             version: RwSignal::new(String::new()),
+            maj_info: RwSignal::new(None),
+            maj_fenetre: RwSignal::new(false),
+            maj_verification: RwSignal::new(false),
+            maj_message: RwSignal::new(String::new()),
+            maj_erreur: RwSignal::new(String::new()),
             cours: RwSignal::new(vec![]),
             chargement_cours: RwSignal::new(false),
             erreur_cours: RwSignal::new(None),
@@ -224,6 +235,39 @@ impl Etat {
                 self.version.set(v);
             }
         });
+        if self.mode == Mode::Tauri {
+            // Vérification discrète, après l'affichage de l'interface : hors ligne, l'application continue normalement.
+            spawn_local(async move {
+                gloo_timers::future::TimeoutFuture::new(4_000).await;
+                self.verifier_maj(false).await;
+            });
+        }
+    }
+
+    /// Recherche une mise à jour. Automatique : silencieuse en cas d'échec (hors ligne). Manuelle : affiche le résultat.
+    pub async fn verifier_maj(self, manuel: bool) {
+        if self.maj_verification.get_untracked() {
+            return;
+        }
+        self.maj_verification.set(true);
+        self.maj_message.set(String::new());
+        self.maj_erreur.set(String::new());
+        match api::verifier_mise_a_jour().await {
+            Ok(Some(info)) => {
+                self.maj_info.set(Some(info));
+                self.maj_fenetre.set(true);
+            }
+            Ok(None) => {
+                self.maj_info.set(None);
+                if manuel {
+                    self.maj_message
+                        .set("Tu utilises déjà la dernière version.".into());
+                }
+            }
+            Err(e) if manuel => self.maj_erreur.set(e.message),
+            Err(_) => {}
+        }
+        self.maj_verification.set(false);
     }
 
     pub fn initialiser_donnees(self) {

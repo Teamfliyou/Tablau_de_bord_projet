@@ -1,6 +1,6 @@
 [package]
 name = "tdb-shared"
-version = "4.1.0"
+version = "4.2.0"
 edition = "2021"
 description = "Types et règles de validation partagés entre le serveur, l'application Windows et le frontend WebAssembly"
 license = "MIT"

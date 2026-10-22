@@ -172,6 +172,7 @@ fn Application() -> impl IntoView {
             </main>
 
             {move || etat.onboarding_visible.get().then(|| view! { <Onboarding /> })}
+            {move || etat.maj_fenetre.get().then(|| view! { <crate::maj::FenetreMiseAJour /> })}
             {move || etat.edition.get().map(|d| view! { <EditionDevoir devoir=d /> })}
             {move || { let t = etat.toast.get(); (!t.is_empty()).then(|| view! {
                 <div class="fixed top-5 right-5 z-[70] max-w-sm rounded-2xl bg-slate-900/90 text-white text-sm px-4 py-3 shadow-xl backdrop-blur">{t}</div>

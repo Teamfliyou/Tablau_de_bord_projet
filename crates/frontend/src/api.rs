@@ -8,8 +8,8 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use tdb_shared::{
     Categories, Config, ConfigUpdate, Connexion, CoursDuJourEtat, CoursSemaineEtat, Devoir,
-    DevoirEntree, DevoirModification, Filtres, Inscription, Plan, RapportMigration, ReponseAuth,
-    Tag, TagEntree,
+    DevoirEntree, DevoirModification, Filtres, InfoMiseAJour, Inscription, Plan,
+    ProgressionMiseAJour, RapportMigration, ReponseAuth, Tag, TagEntree,
 };
 use wasm_bindgen::prelude::*;
 
@@ -350,6 +350,25 @@ pub async fn version() -> Option<String> {
             .ok()
             .and_then(|v| v.get("version").and_then(Value::as_str).map(str::to_string)),
     }
+}
+
+// ------------------------------------------------ Mise à jour (Windows)
+
+/// Recherche une version plus récente. La version Web n'a pas de mise à jour côté client.
+pub async fn verifier_mise_a_jour() -> Res<Option<InfoMiseAJour>> {
+    match mode() {
+        Mode::Tauri => invoquer("verifier_mise_a_jour", json!({})).await,
+        Mode::Web => Ok(None),
+    }
+}
+
+/// Télécharge, vérifie et installe la mise à jour trouvée (l'application redémarre ensuite).
+pub async fn installer_mise_a_jour() -> Res<()> {
+    invoquer("installer_mise_a_jour", json!({})).await
+}
+
+pub async fn progression_mise_a_jour() -> Res<ProgressionMiseAJour> {
+    invoquer("progression_mise_a_jour", json!({})).await
 }
 
 // -------------------------------------------------- Fichiers (export / import)

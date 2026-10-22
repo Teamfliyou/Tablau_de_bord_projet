@@ -2,6 +2,7 @@
 //! Aucun serveur HTTP local n'est démarré.
 
 mod coffre;
+mod maj;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -206,6 +207,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
@@ -221,6 +223,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
             let service = Arc::new(Service::nouveau(db, Arc::new(coffre::CoffreWindows)));
             app.manage(service);
+            app.manage(maj::EtatMiseAJour::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -245,6 +248,9 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             migrer_ancienne_base,
             generer_plan,
             version_application,
+            maj::verifier_mise_a_jour,
+            maj::installer_mise_a_jour,
+            maj::progression_mise_a_jour,
         ])
         .run(tauri::generate_context!())?;
     Ok(())

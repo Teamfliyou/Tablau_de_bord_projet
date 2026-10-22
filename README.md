@@ -80,16 +80,20 @@ Prérequis : Rust stable (cible MSVC) avec *Build Tools for Visual Studio*, la c
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo install trunk tauri-cli --locked
-cargo tauri build --bundles nsis
+cargo tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
 ```
 
-Sorties : `target/release/TableauDeBordEtudiant.exe` et `target/release/bundle/nsis/*-setup.exe`.
+Sorties : `target/release/TableauDeBordEtudiant.exe` et `target/release/bundle/nsis/*-setup.exe`. (Le paramètre `--config` désactive les fichiers de mise à jour signés, réservés à la CI qui détient la clé privée.)
 
-Le workflow GitHub Actions peut aussi être lancé manuellement (*Actions → Build Windows (Tauri) → Run workflow*). Une Release n'est publiée que pour un tag :
+Le workflow GitHub Actions peut aussi être lancé manuellement (*Actions → Build Windows (Tauri) → Run workflow*). Une Release n'est publiée que pour un tag stable `vX.Y.Z` :
 
 ```bash
-git tag v4.0.0 && git push origin v4.0.0
+git tag v4.2.0 && git push origin v4.2.0
 ```
+
+### 🔄 Mise à jour automatique (depuis la 4.2.0)
+
+L'installation (NSIS) vérifie discrètement au lancement s'il existe une release stable plus récente sur GitHub, propose de la télécharger avec une barre de progression réelle, vérifie sa signature cryptographique puis l'installe sans toucher à vos données. Vous pouvez aussi la déclencher dans **Configuration → Données locales → Rechercher les mises à jour**. La 4.2.0 doit être installée une première fois manuellement ; les installations 4.1.0 et antérieures ne se mettent pas à jour seules. Préparation des clés et publication : voir [docs/APPLICATION_WINDOWS.md](docs/APPLICATION_WINDOWS.md#10-mise-à-jour-automatique).
 
 ## ✅ Tests et qualité
 

@@ -11,7 +11,8 @@ where cargo-tauri >nul 2>&1 || (echo La CLI Tauri est introuvable : lancez  carg
 
 rustup target add wasm32-unknown-unknown
 rustup default stable-x86_64-pc-windows-msvc
-cargo tauri build --bundles nsis || (echo Echec de la compilation. & pause & exit /b 1)
+rem Build local : pas de cle de signature des mises a jour (reservee a la CI), donc pas d'artefacts de mise a jour.
+cargo tauri build --bundles nsis --config "{\"bundle\":{\"createUpdaterArtifacts\":false}}" || (echo Echec de la compilation. & pause & exit /b 1)
 
 echo.
 echo Termine :

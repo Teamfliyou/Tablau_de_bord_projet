@@ -307,6 +307,36 @@ pub struct RapportMigration {
     pub cle_gemini_trouvee: bool,
 }
 
+// ------------------------------------------------------- Mise à jour (Windows)
+
+/// Mise à jour plus récente trouvée sur GitHub Releases.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct InfoMiseAJour {
+    pub version_actuelle: String,
+    pub version: String,
+    /// Notes de version publiées avec la release (texte brut).
+    pub notes: Option<String>,
+    /// `false` pour l'exécutable portable : installation automatique refusée.
+    pub installable: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PhaseMiseAJour {
+    #[default]
+    Inactif,
+    Telechargement,
+    Installation,
+}
+
+/// Progression réelle du téléchargement (octets reçus / taille annoncée par le serveur).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ProgressionMiseAJour {
+    pub phase: PhaseMiseAJour,
+    pub telecharge: u64,
+    pub total: Option<u64>,
+}
+
 // ----------------------------------------------------------- Authentification
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

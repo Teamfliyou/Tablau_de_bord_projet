@@ -13,6 +13,8 @@ Chaque compilation de la CI publie deux fichiers dans l'onglet **Actions → « 
 |---|---|
 | `TableauDeBordEtudiant.exe` | **Version portable** : double-clic, aucune installation. |
 | `TableauDeBordEtudiant-Setup-X.Y.Z.exe` | **Installateur NSIS** : raccourcis bureau + menu Démarrer, désinstallation propre. |
+| `TableauDeBordEtudiant-Setup-X.Y.Z.exe.sig` | Signature de l'installateur (utilisée par la mise à jour automatique). |
+| `latest.json` | Manifeste de mise à jour lu par l'application. |
 | `SHA256SUMS.txt` | Sommes de contrôle pour vérifier les téléchargements. |
 
 > Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » : les exécutables ne sont pas signés par un certificat de signature de code payant. Cliquez sur **Informations complémentaires → Exécuter quand même**.
@@ -137,15 +139,56 @@ Le même frontend fonctionne dans un navigateur avec le serveur Axum (voir le `R
 
 ### Intégration continue
 
-`.github/workflows/build-windows.yml` (runner `windows-latest`) : build du frontend Leptos (`trunk build --release`) → `cargo fmt --check` → `clippy -D warnings` → `cargo test` → `tauri build` → **test de lancement du `.exe` portable** (fenêtre créée, base SQLite créée) → **test de l'installateur** (installation silencieuse, raccourcis, lancement, désinstallation, données conservées) → artifacts. Un tag `vX.Y.Z` crée en plus une GitHub Release.
-
-```bash
-git tag v4.0.0 && git push origin v4.0.0
-```
+`.github/workflows/build-windows.yml` (runner `windows-latest`) : build du frontend Leptos (`trunk build --release`) → `cargo fmt --check` → `clippy -D warnings` → `cargo test` → `tauri build` → **test de lancement du `.exe` portable** (fenêtre créée, base SQLite créée) → **test de l'installateur** (installation silencieuse, raccourcis, lancement, désinstallation, données conservées) → artifacts. Un tag stable `vX.Y.Z` signe en plus la mise à jour, génère `latest.json` et crée la GitHub Release (voir section 10).
 
 ## 9. Limitations connues
 
-- Exécutables **non signés** (avertissement SmartScreen possible) ; pas de mise à jour automatique intégrée (réinstallez la nouvelle version par-dessus : les données sont conservées).
+- Exécutables **non signés** (avertissement SmartScreen possible) . La mise à jour automatique n'existe qu'à partir de la 4.2.0 (installateur) ; le `.exe` portable ne se met pas à jour seul.
 - Application Windows uniquement ; pour les autres systèmes, utilisez la version Web (serveur Axum, Docker).
 - Les événements récurrents (`RRULE`) du flux iCal ne sont pas étendus — comme dans la version Python ; ADE exporte normalement chaque séance comme un événement distinct.
 - Le modèle Gemini est librement saisissable : un nom inexistant donne un plan en mode simulation avec explication.
+
+## 10. Mise à jour automatique
+
+### Fonctionnement (utilisateur)
+
+1. Quelques secondes après le lancement, l'application interroge en arrière-plan `https://github.com/Teamfliyou/Tablau_de_bord_projet/releases/latest/download/latest.json`. GitHub n'y expose que la **dernière release stable** : brouillons et préversions sont ignorés. Hors connexion, l'application continue normalement, sans message.
+2. Si une version **strictement supérieure** existe, une fenêtre « Mise à jour disponible » affiche version actuelle, nouvelle version et améliorations. Boutons : **Mettre à jour maintenant** / **Plus tard**.
+3. Le téléchargement affiche la progression réelle (octets reçus / taille annoncée). Tauri vérifie la **signature minisign** avec la clé publique intégrée ; si elle est invalide, rien n'est installé. L'installateur NSIS est alors lancé (mode passif) **par-dessus l'installation existante** (pas de seconde installation) et l'application redémarre.
+4. **Configuration → Données locales → Rechercher les mises à jour** déclenche une vérification manuelle (résultat ou erreur affichés). En cas d'échec, un bouton **Réessayer** est proposé.
+
+Les données (`%APPDATA%\fr.teamfliyou.tableaudebord` : base SQLite, devoirs, préférences, liens ADE, sauvegardes) ne sont jamais touchées ; la clé Gemini reste dans le Gestionnaire d'identifiants Windows. L'identifiant `fr.teamfliyou.tableaudebord` ne doit jamais changer.
+
+**Limites** : la 4.1.0 et les versions antérieures n'ont pas ce mécanisme : la 4.2.0 s'installe une première fois à la main. Le `.exe` **portable** peut détecter une nouvelle version mais refuse de l'installer (l'installateur créerait une seconde installation et on ne remplace pas un exécutable en cours d'exécution) : il affiche un message invitant à télécharger le nouvel installateur.
+
+### Préparer les clés de signature (une seule fois, action humaine)
+
+```bash
+cargo tauri signer generate -w "$HOME/.tauri/tableau-de-bord.key"
+```
+
+Choisissez un mot de passe fort. La commande affiche la clé **publique** et écrit la clé privée dans le fichier indiqué (et `.key.pub`).
+
+1. Collez la clé publique (contenu du fichier `.key.pub`) dans `src-tauri/tauri.conf.json` → `plugins.updater.pubkey` (déjà renseignée pour la 4.2.0 ; ne la changez que si la clé est remplacée, auquel cas les anciennes installations ne pourront plus se mettre à jour).
+2. Dans GitHub : *Settings → Secrets and variables → Actions → New repository secret* :
+   - `TAURI_SIGNING_PRIVATE_KEY` : **contenu** du fichier de clé privée ;
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` : le mot de passe choisi.
+3. Sauvegardez la clé privée et son mot de passe dans un gestionnaire de mots de passe. Elle ne doit **jamais** être commitée (le workflow ne l'écrit ni sur disque ni dans les journaux). Si elle est perdue, plus aucune mise à jour ne pourra être publiée pour les installations existantes.
+
+### Publier une nouvelle version
+
+1. Mettre à jour la version **partout** : `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` et les `Cargo.toml` des crates (puis `cargo check` pour régénérer `Cargo.lock`).
+2. Fusionner dans `main` quand la CI est verte, puis :
+   ```bash
+   git tag v4.2.1 && git push origin v4.2.1
+   ```
+3. Le workflow (tag stable `vX.Y.Z` uniquement) : vérifie tag/version/secrets → fmt, clippy, tests → compile frontend + NSIS signé → **vérifie la signature avec la clé publique intégrée** → génère et valide `latest.json` → teste lancement et installation (y compris réinstallation par-dessus) → crée la release en **brouillon**, téléverse tout, contrôle que chaque fichier est présent, **puis seulement** la publie. Toute signature, installateur ou fichier manquant fait échouer le workflow : `latest.json` n'est donc jamais visible avant ses artefacts.
+
+### Sécurité de la mise à jour
+
+HTTPS uniquement (GitHub) ; signature obligatoire ; clé privée dans les seuls secrets GitHub ; aucune version identique, antérieure ou préversion n'est proposée (`doit_proposer` dans `src-tauri/src/maj.rs`, testé) ; les commandes sont des commandes Rust dédiées et le plugin n'expose aucune permission supplémentaire à l'interface.
+
+### Tests
+
+- Automatisés : `cargo test --workspace` (comparaison de versions, détection portable/installé, validité de la clé publique et de l'endpoint, identifiant de données) ; en CI sur tag : vérification de la signature réelle de l'installateur, validation de `latest.json`, réinstallation par-dessus sans doublon et données conservées.
+- **À faire manuellement avant d'annoncer le mécanisme** (non automatisé) : installer la 4.2.0, publier un tag `v4.2.1`, lancer l'application installée et valider la mise à jour de bout en bout ; tester aussi hors connexion et avec une base contenant des données.

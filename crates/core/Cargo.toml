@@ -1,6 +1,6 @@
 [package]
 name = "tdb-core"
-version = "4.1.0"
+version = "4.2.0"
 edition = "2021"
 description = "Logique métier du Tableau de bord étudiant (SQLite, ADE, Kanban, Gemini)"
 
@@ -18,6 +18,7 @@ url = "2"
 tokio = { version = "1", features = ["net", "time", "rt", "macros", "sync"] }
 reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
 log = "0.4"
+semver = "1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["io-util", "net", "rt-multi-thread", "macros"] }

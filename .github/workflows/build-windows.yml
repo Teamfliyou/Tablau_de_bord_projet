@@ -2,12 +2,15 @@ name: Build Windows (Tauri)
 
 # Compile l'application de bureau Windows : .exe portable + installateur NSIS.
 # - déclenchement manuel (Actions → Run workflow), push sur main, pull request : tests, compilation, artifacts
-# - tag vX.Y.Z : publie en plus une GitHub Release avec les fichiers (jamais à chaque simple commit)
+# - tag stable vX.Y.Z : signe la mise à jour, génère latest.json et publie une GitHub Release (jamais à chaque simple commit)
+#   Secrets requis pour une release : TAURI_SIGNING_PRIVATE_KEY et TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#   (voir docs/APPLICATION_WINDOWS.md, section « Publier une nouvelle version »).
 
 on:
   push:
     branches: ["main", "migration/**"]
-    tags: ["v*"]
+    # Tags stables uniquement (vX.Y.Z) : un tag de préversion (v4.3.0-beta.1) ne déclenche aucune release.
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
   pull_request:
   workflow_dispatch:
 
@@ -21,6 +24,9 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   APP_DATA_ID: fr.teamfliyou.tableaudebord
+  # Clé de signature des mises à jour : lue uniquement depuis les secrets GitHub (jamais écrite sur disque ni affichée).
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
 jobs:
   build:
@@ -29,6 +35,8 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -47,12 +55,16 @@ jobs:
       - name: Installer la CLI Tauri 2
         run: cargo binstall tauri-cli --version "^2" --no-confirm --locked
 
-      - name: Vérifier que le tag correspond à la version
+      - name: Vérifier la version, le tag et la présence de la clé de signature
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
           $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
           if ("${{ github.ref_name }}" -ne "v$version") { throw "Le tag ${{ github.ref_name }} ne correspond pas à la version $version" }
+          $cargo = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          if ($cargo -ne $version) { throw "Cargo.toml ($cargo) et tauri.conf.json ($version) ne sont pas synchronisés" }
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw "Secret TAURI_SIGNING_PRIVATE_KEY absent : impossible de signer la mise à jour (voir docs/APPLICATION_WINDOWS.md)" }
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) { throw "Secret TAURI_SIGNING_PRIVATE_KEY_PASSWORD absent" }
 
       - name: Compiler le frontend Leptos (Rust/WASM)
         run: trunk build --release
@@ -70,7 +82,12 @@ jobs:
       - name: Tests Rust
         run: cargo test --workspace --locked
 
-      - name: Compiler l'application (release) et l'installateur NSIS
+      - name: Compiler l'application et l'installateur NSIS (sans fichiers de mise à jour)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: cargo tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Compiler l'application, l'installateur NSIS et la signature de mise à jour
+        if: startsWith(github.ref, 'refs/tags/v')
         run: cargo tauri build --bundles nsis
 
       - name: Rassembler les exécutables
@@ -82,11 +99,35 @@ jobs:
           $setup = Get-ChildItem target/release/bundle/nsis -Filter *.exe | Select-Object -First 1
           if (-not $setup) { throw "Installateur NSIS introuvable" }
           Copy-Item $setup.FullName "release/TableauDeBordEtudiant-Setup-$version.exe"
+          if ("${{ github.ref }}" -like "refs/tags/v*") {
+            $sig = "$($setup.FullName).sig"
+            if (-not (Test-Path $sig)) { throw "Signature de mise à jour introuvable : $sig" }
+            Copy-Item $sig "release/TableauDeBordEtudiant-Setup-$version.exe.sig"
+          }
           Get-ChildItem release | ForEach-Object {
             $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$h  $($_.Name)" | Out-File -Append -Encoding ascii release/SHA256SUMS.txt
             Write-Host ("{0}  {1:N1} Mo" -f $_.Name, ($_.Length / 1MB))
           }
+
+      - name: Vérifier la signature avec la clé publique intégrée à l'application
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $env:TDB_VERIF_FICHIER = (Resolve-Path "release/TableauDeBordEtudiant-Setup-$version.exe").Path
+          $env:TDB_VERIF_SIGNATURE = (Resolve-Path "release/TableauDeBordEtudiant-Setup-$version.exe.sig").Path
+          cargo test -p tableau-de-bord-etudiant --test signature --locked -- --nocapture
+
+      - name: Générer et valider latest.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $precedent = git describe --tags --abbrev=0 --match "v[0-9]*" "${{ github.ref_name }}^" 2>$null
+          $plage = if ($precedent) { "$precedent..${{ github.ref_name }}" } else { "${{ github.ref_name }}" }
+          $notes = (git log $plage --no-merges --pretty=format:"- %s") -join "`n"
+          ./scripts/generer-latest-json.ps1 -Version $version -Depot "${{ github.repository }}" -Dossier release -Notes $notes
 
       - name: Test de lancement du .exe portable
         shell: pwsh
@@ -109,7 +150,7 @@ jobs:
           } catch { Write-Host "Capture d'écran indisponible : $_" }
           Stop-Process -Id $p.Id -Force
 
-      - name: Test de l'installateur (installation silencieuse, raccourcis, désinstallation)
+      - name: Test de l'installateur (installation, réinstallation par-dessus, raccourcis, désinstallation)
         shell: pwsh
         run: |
           $setup = (Get-ChildItem release -Filter "*-Setup-*.exe" | Select-Object -First 1).FullName
@@ -124,6 +165,14 @@ jobs:
           $lnk | ForEach-Object { Write-Host "Raccourci : $($_.FullName)" }
           if (-not ($lnk | Where-Object { $_.FullName -like "*Desktop*" })) { Write-Warning "Raccourci bureau non trouvé" }
           if (-not ($lnk | Where-Object { $_.FullName -like "*Start Menu*" })) { throw "Raccourci du menu Démarrer manquant" }
+          # Réinstallation par-dessus (même mécanisme que la mise à jour) : pas de seconde installation, données conservées.
+          $dbChemin = Join-Path $env:APPDATA "$env:APP_DATA_ID/tableau-de-bord.db"
+          if (-not (Test-Path $dbChemin)) { throw "Base SQLite absente avant la réinstallation (lancement préalable manquant)" }
+          Start-Process $setup -ArgumentList "/S" -Wait
+          $copies = @(Get-ChildItem $env:LOCALAPPDATA -Recurse -Filter TableauDeBordEtudiant.exe -ErrorAction SilentlyContinue)
+          if ($copies.Count -ne 1) { throw "Installation par-dessus : $($copies.Count) copies de l'application (1 attendue)" }
+          if (-not (Test-Path $dbChemin)) { throw "Base SQLite perdue après la réinstallation" }
+          Write-Host "Réinstallation par-dessus : une seule installation, données conservées."
           $p = Start-Process $installe.FullName -PassThru
           Start-Sleep -Seconds 12
           if ($p.HasExited) { throw "L'application installée s'est arrêtée (code $($p.ExitCode))" }
@@ -133,8 +182,7 @@ jobs:
           Start-Process $uninstall -ArgumentList "/S" -Wait
           Start-Sleep -Seconds 3
           if (Test-Path $installe.FullName) { throw "Désinstallation incomplète" }
-          $db = Join-Path $env:APPDATA "$env:APP_DATA_ID/tableau-de-bord.db"
-          if (-not (Test-Path $db)) { throw "Les données utilisateur ont été supprimées à la désinstallation" }
+          if (-not (Test-Path $dbChemin)) { throw "Les données utilisateur ont été supprimées à la désinstallation" }
           Write-Host "Désinstallation propre, données utilisateur conservées."
 
       - name: Publier les exécutables (artifacts)
@@ -144,6 +192,8 @@ jobs:
           path: |
             release/TableauDeBordEtudiant.exe
             release/TableauDeBordEtudiant-Setup-*.exe
+            release/TableauDeBordEtudiant-Setup-*.exe.sig
+            release/latest.json
             release/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
@@ -169,11 +219,38 @@ jobs:
         with:
           name: TableauDeBordEtudiant-windows
           path: release
-      - name: Créer la release
+
+      - name: Vérifier que tous les fichiers indispensables sont présents et cohérents
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for f in "TableauDeBordEtudiant.exe" "TableauDeBordEtudiant-Setup-$version.exe" "TableauDeBordEtudiant-Setup-$version.exe.sig" "latest.json" "SHA256SUMS.txt"; do
+            [ -s "release/$f" ] || { echo "::error::Fichier indispensable absent ou vide : $f"; exit 1; }
+          done
+          url="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/TableauDeBordEtudiant-Setup-$version.exe"
+          jq -e --arg v "$version" --arg u "$url" \
+            '.version == $v and .platforms["windows-x86_64"].url == $u and (.platforms["windows-x86_64"].signature | length > 0)' \
+            release/latest.json > /dev/null \
+            || { echo "::error::latest.json incohérent avec les fichiers publiés"; exit 1; }
+
+      - name: Créer la release en brouillon, téléverser, vérifier, puis publier
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" release/* \
+          version="${GITHUB_REF_NAME#v}"
+          # Brouillon : latest.json n'est visible des applications qu'une fois TOUS les fichiers disponibles.
+          gh release create "$GITHUB_REF_NAME" release/* \
             --repo "${{ github.repository }}" \
-            --title "Tableau de bord étudiant ${{ github.ref_name }}" \
+            --draft \
+            --title "Tableau de bord étudiant $GITHUB_REF_NAME" \
             --generate-notes
+          assets=$(gh release view "$GITHUB_REF_NAME" --repo "${{ github.repository }}" --json assets --jq '.assets[].name')
+          for f in TableauDeBordEtudiant.exe "TableauDeBordEtudiant-Setup-$version.exe" "TableauDeBordEtudiant-Setup-$version.exe.sig" latest.json SHA256SUMS.txt; do
+            echo "$assets" | grep -qxF "$f" || { echo "::error::Fichier non téléversé : $f"; exit 1; }
+          done
+          gh release edit "$GITHUB_REF_NAME" --repo "${{ github.repository }}" --draft=false --latest
+
+      - name: Vérifier le manifeste publié
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          curl -fsSL "https://github.com/${{ github.repository }}/releases/latest/download/latest.json" | jq -e --arg v "$version" '.version == $v'
+          curl -fsSIL "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/TableauDeBordEtudiant-Setup-$version.exe" > /dev/null

@@ -1,6 +1,7 @@
 mod api;
 mod app;
 mod icons;
+mod maj;
 mod pages;
 mod state;
 mod ui;

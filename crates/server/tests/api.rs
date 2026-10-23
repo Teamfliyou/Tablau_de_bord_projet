@@ -587,7 +587,7 @@ async fn migration_d_une_base_python_existante() {
     }
 
     let store = Store::ouvrir(&chemin).expect("migration");
-    assert_eq!(store.version().expect("version"), 3);
+    assert_eq!(store.version().expect("version"), 4);
     // Une sauvegarde de l'ancienne base a été créée avant toute modification.
     let sauvegardes: Vec<_> = std::fs::read_dir(dossier.path().join("sauvegardes"))
         .expect("dossier de sauvegardes")
@@ -615,11 +615,78 @@ async fn migration_d_une_base_python_existante() {
     // Rouvrir la base ne refait pas de migration ni de nouvelle sauvegarde.
     drop(app);
     let store = Store::ouvrir(&chemin).expect("réouverture");
-    assert_eq!(store.version().expect("version"), 3);
+    assert_eq!(store.version().expect("version"), 4);
     assert_eq!(
         std::fs::read_dir(dossier.path().join("sauvegardes"))
             .expect("dossier")
             .count(),
         1
+    );
+}
+
+#[tokio::test]
+async fn todos_import_export_et_edition() {
+    let app = application();
+    let t = inscrire(&app, "todo@example.com").await;
+    let autre = inscrire(&app, "todo2@example.com").await;
+    let (s, _) = appel(
+        &app,
+        Method::POST,
+        "/api/devoirs/import",
+        Some(&t),
+        Some(json!([
+            {"titre": "Ancien"},
+            {"titre": "TD Maths", "todos": [{"texte": "Exercice 1", "fait": true}, {"texte": "Exercice 2"}]}
+        ])),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+
+    let (_, liste) = appel(&app, Method::GET, "/api/devoirs", Some(&t), None).await;
+    assert_eq!(liste[0]["todos"], json!([]));
+    assert_eq!(liste[1]["todos"][0]["texte"], "Exercice 1");
+    assert_eq!(liste[1]["todos"][0]["fait"], true);
+    assert_eq!(liste[1]["todos"][1]["fait"], false);
+    let id = liste[1]["id"].as_i64().expect("id");
+
+    // Cocher / réordonner / ajouter via le remplacement de la liste.
+    let (s, d) = appel(
+        &app,
+        Method::PUT,
+        &format!("/api/devoirs/{id}/todos"),
+        Some(&t),
+        Some(json!([{"texte": "Exercice 2", "fait": true}, {"texte": "Exercice 1", "fait": true}, {"texte": "Exercice 3", "fait": false}])),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{d}");
+    assert_eq!(d["todos"][0]["texte"], "Exercice 2");
+    assert_eq!(d["todos"].as_array().map(Vec::len), Some(3));
+
+    // Validation et isolation entre utilisateurs.
+    let (s, _) = appel(
+        &app,
+        Method::PUT,
+        &format!("/api/devoirs/{id}/todos"),
+        Some(&t),
+        Some(json!([{"texte": " "}])),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = appel(
+        &app,
+        Method::PUT,
+        &format!("/api/devoirs/{id}/todos"),
+        Some(&autre),
+        Some(json!([])),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    // Export : `todos` seulement quand la liste n'est pas vide.
+    let (_, export) = appel(&app, Method::GET, "/api/devoirs/export", Some(&t), None).await;
+    assert!(export[0].get("todos").is_none());
+    assert_eq!(
+        export[1]["todos"][2],
+        json!({"texte": "Exercice 3", "fait": false})
     );
 }

@@ -22,6 +22,46 @@ pub struct Devoir {
     pub statut: String,
     #[serde(default)]
     pub tags: Vec<Tag>,
+    /// Sous-tâches (to-do list) ; absentes des anciennes données : liste vide.
+    #[serde(default)]
+    pub todos: Vec<Todo>,
+}
+
+/// Élément de to-do d'un devoir.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Todo {
+    pub id: i64,
+    pub texte: String,
+    pub fait: bool,
+}
+
+/// Élément de to-do sans identifiant : enregistrement, import / export JSON.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct TodoEntree {
+    pub texte: String,
+    #[serde(default)]
+    pub fait: bool,
+}
+
+pub const TODOS_PAR_DEVOIR_MAX: usize = 100;
+
+impl TodoEntree {
+    /// Nettoie et valide un élément (texte de 1 à 200 caractères).
+    pub fn valider(mut self) -> Result<Self, String> {
+        self.texte = self.texte.trim().to_string();
+        if self.texte.is_empty() || self.texte.chars().count() > 200 {
+            return Err("Une sous-tâche doit contenir entre 1 et 200 caractères.".into());
+        }
+        Ok(self)
+    }
+
+    /// Valide toute une liste (100 éléments maximum).
+    pub fn valider_liste(liste: Vec<Self>) -> Result<Vec<Self>, String> {
+        if liste.len() > TODOS_PAR_DEVOIR_MAX {
+            return Err("Un devoir ne peut pas avoir plus de 100 sous-tâches.".into());
+        }
+        liste.into_iter().map(Self::valider).collect()
+    }
 }
 
 /// Tag personnalisé (réutilisable sur plusieurs devoirs).
@@ -61,6 +101,9 @@ pub struct DevoirEntree {
     /// Absent dans les anciens fichiers : liste vide, export identique à l'ancien format.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<TagEntree>,
+    /// Sous-tâches avec leur état ; absentes des anciens fichiers : liste vide.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub todos: Vec<TodoEntree>,
 }
 
 fn type_defaut() -> String {
@@ -100,6 +143,7 @@ impl DevoirEntree {
             .into_iter()
             .map(TagEntree::valider)
             .collect::<Result<_, _>>()?;
+        self.todos = TodoEntree::valider_liste(self.todos)?;
         Ok(self)
     }
 }

@@ -1,0 +1,18 @@
+[
+  {
+    "titre": "TD Maths",
+    "matiere": "Mathématiques",
+    "echeance": "2026-11-10",
+    "type": "devoir",
+    "statut": "en_cours",
+    "tags": [{ "nom": "TD", "couleur": "#6366f1" }],
+    "todos": [
+      { "texte": "Exercice 1", "fait": true },
+      { "texte": "Exercice 2", "fait": false },
+      { "texte": "Exercice 3" }
+    ]
+  },
+  {
+    "titre": "Rapport de TP (ancien format, sans todos)"
+  }
+]

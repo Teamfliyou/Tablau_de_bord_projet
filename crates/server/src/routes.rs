@@ -51,6 +51,7 @@ pub fn routes() -> Router<AppState> {
             patch(modifier_devoir).delete(supprimer_devoir),
         )
         .route("/api/devoirs/{id}/tags", put(definir_tags_devoir))
+        .route("/api/devoirs/{id}/todos", put(definir_todos_devoir))
         .route("/api/tags", get(lister_tags).post(creer_tag))
         .route("/api/tags/{id}", put(modifier_tag).delete(supprimer_tag))
         .route("/api/plan-revision", post(plan_revision))
@@ -401,6 +402,15 @@ async fn definir_tags_devoir(
     Ok(Json(s.store.definir_tags_devoir(u.id, id, tags)?))
 }
 
+async fn definir_todos_devoir(
+    State(s): State<AppState>,
+    UtilisateurAuth(u): UtilisateurAuth,
+    ApiPath(id): ApiPath<i64>,
+    ApiJson(todos): ApiJson<Vec<tdb_shared::TodoEntree>>,
+) -> ApiResult<Json<tdb_shared::Devoir>> {
+    Ok(Json(s.store.definir_todos_devoir(u.id, id, todos)?))
+}
+
 // ------------------------------------------------------------------------ Tags
 
 async fn lister_tags(
@@ -456,6 +466,14 @@ async fn exporter_devoirs(
                 .map(|t| tdb_shared::TagEntree {
                     nom: t.nom,
                     couleur: t.couleur,
+                })
+                .collect(),
+            todos: d
+                .todos
+                .into_iter()
+                .map(|t| tdb_shared::TodoEntree {
+                    texte: t.texte,
+                    fait: t.fait,
                 })
                 .collect(),
         })

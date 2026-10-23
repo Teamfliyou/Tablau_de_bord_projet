@@ -8,8 +8,8 @@ use std::sync::{Mutex, MutexGuard};
 
 pub use tdb_shared::{
     valider_echeance, valider_matiere, valider_statut, valider_titre, valider_type, Devoir,
-    DevoirEntree, DevoirModification, RapportMigration, Tag, TagEntree, IMPORT_MAX,
-    IMPORT_MAX_OCTETS, STATUTS, TYPES,
+    DevoirEntree, DevoirModification, RapportMigration, Tag, TagEntree, Todo, TodoEntree,
+    IMPORT_MAX, IMPORT_MAX_OCTETS, STATUTS, TYPES,
 };
 const SAUVEGARDES_CONSERVEES: usize = 7;
 
@@ -41,6 +41,15 @@ const MIGRATIONS: &[&str] = &[
         tag_id INTEGER NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
         PRIMARY KEY (devoir_id, tag_id)
     );",
+    // v3 : sous-tâches (to-do) des devoirs (ajout seul).
+    "CREATE TABLE sous_taches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        devoir_id INTEGER NOT NULL REFERENCES devoirs (id) ON DELETE CASCADE,
+        texte TEXT NOT NULL,
+        fait INTEGER NOT NULL DEFAULT 0,
+        position INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX ix_sous_taches_devoir ON sous_taches (devoir_id, position);",
 ];
 
 /// Paramètres de l'ancienne base trouvés dans `users` (le secret est renvoyé séparément).
@@ -207,6 +216,7 @@ impl Db {
             .collect::<Result<Vec<_>, _>>()?;
         for d in &mut lignes {
             d.tags = tags_du_devoir(&conn, d.id)?;
+            d.todos = todos_du_devoir(&conn, d.id)?;
         }
         Ok(lignes)
     }
@@ -217,6 +227,7 @@ impl Db {
         let tx = conn.transaction()?;
         let id = inserer_devoir(&tx, &e)?;
         let tags = tags_du_devoir(&tx, id)?;
+        let todos = todos_du_devoir(&tx, id)?;
         tx.commit()?;
         Ok(Devoir {
             id,
@@ -226,6 +237,7 @@ impl Db {
             type_: e.type_,
             statut: e.statut,
             tags,
+            todos,
         })
     }
 
@@ -245,6 +257,7 @@ impl Db {
             params![d.id, d.titre, d.matiere, d.echeance, d.type_, d.statut],
         )?;
         d.tags = tags_du_devoir(&conn, id)?;
+        d.todos = todos_du_devoir(&conn, id)?;
         Ok(d)
     }
 
@@ -352,6 +365,26 @@ impl Db {
         Ok(devoir)
     }
 
+    /// Remplace la to-do list d'un devoir (ordre de la liste conservé, une transaction).
+    pub fn definir_todos_devoir(&self, id: i64, todos: Vec<TodoEntree>) -> Resultat<Devoir> {
+        let todos = TodoEntree::valider_liste(todos)?;
+        let mut conn = self.verrou()?;
+        let tx = conn.transaction()?;
+        let mut devoir = tx
+            .query_row(
+                "SELECT id, titre, matiere, echeance, type, statut FROM devoirs WHERE id = ?1",
+                [id],
+                ligne_devoir,
+            )
+            .optional()?
+            .ok_or_else(|| Erreur::Introuvable("Devoir introuvable.".into()))?;
+        remplacer_todos(&tx, id, &todos)?;
+        devoir.tags = tags_du_devoir(&tx, id)?;
+        devoir.todos = todos_du_devoir(&tx, id)?;
+        tx.commit()?;
+        Ok(devoir)
+    }
+
     /// Export au format historique (sans identifiant) ; les tags sont exportés par nom.
     pub fn exporter_devoirs(&self) -> Resultat<Vec<DevoirEntree>> {
         Ok(self
@@ -369,6 +402,14 @@ impl Db {
                     .map(|t| TagEntree {
                         nom: t.nom,
                         couleur: t.couleur,
+                    })
+                    .collect(),
+                todos: d
+                    .todos
+                    .into_iter()
+                    .map(|t| TodoEntree {
+                        texte: t.texte,
+                        fait: t.fait,
                     })
                     .collect(),
             })
@@ -522,6 +563,7 @@ impl Db {
             .into_iter()
             .map(|mut e| {
                 e.tags.clear();
+                e.todos.clear();
                 e
             })
             .collect();
@@ -542,6 +584,7 @@ impl Db {
                     "a_faire".into()
                 },
                 tags: Vec::new(),
+                todos: Vec::new(),
             };
             match e.valider() {
                 Ok(e) if !existants.contains(&e) && !nouveaux.contains(&e) => nouveaux.push(e),
@@ -617,6 +660,7 @@ fn ligne_devoir(r: &rusqlite::Row<'_>) -> rusqlite::Result<Devoir> {
         type_: r.get(4)?,
         statut: r.get(5)?,
         tags: Vec::new(),
+        todos: Vec::new(),
     })
 }
 
@@ -647,7 +691,39 @@ fn inserer_devoir(conn: &Connection, e: &DevoirEntree) -> rusqlite::Result<i64> 
             params![id, tag_id],
         )?;
     }
+    remplacer_todos(conn, id, &e.todos)?;
     Ok(id)
+}
+
+fn remplacer_todos(
+    conn: &Connection,
+    devoir_id: i64,
+    todos: &[TodoEntree],
+) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM sous_taches WHERE devoir_id = ?1", [devoir_id])?;
+    for (position, t) in todos.iter().enumerate() {
+        conn.execute(
+            "INSERT INTO sous_taches (devoir_id, texte, fait, position) VALUES (?1,?2,?3,?4)",
+            params![devoir_id, t.texte, t.fait, position as i64],
+        )?;
+    }
+    Ok(())
+}
+
+fn todos_du_devoir(conn: &Connection, devoir_id: i64) -> rusqlite::Result<Vec<Todo>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, texte, fait FROM sous_taches WHERE devoir_id = ?1 ORDER BY position, id",
+    )?;
+    let lignes = stmt
+        .query_map([devoir_id], |r| {
+            Ok(Todo {
+                id: r.get(0)?,
+                texte: r.get(1)?,
+                fait: r.get(2)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(lignes)
 }
 
 fn tags_du_devoir(conn: &Connection, devoir_id: i64) -> rusqlite::Result<Vec<Tag>> {
@@ -706,6 +782,7 @@ mod tests {
             type_: "ds".into(),
             statut: "a_faire".into(),
             tags: Vec::new(),
+            todos: Vec::new(),
         }
     }
 
@@ -770,6 +847,67 @@ mod tests {
             autre.exporter_devoirs().unwrap(),
             db.exporter_devoirs().unwrap()
         );
+    }
+
+    #[test]
+    fn todos_crud_ordre_et_suppression() {
+        let db = Db::en_memoire().unwrap();
+        let d = db.creer_devoir(entree("TD Maths")).unwrap();
+        assert!(d.todos.is_empty());
+        let t = |texte: &str, fait| TodoEntree {
+            texte: texte.into(),
+            fait,
+        };
+        let d = db
+            .definir_todos_devoir(
+                d.id,
+                vec![t(" Ex 1 ", true), t("Ex 2", false), t("Ex 3", false)],
+            )
+            .unwrap();
+        let textes: Vec<_> = d.todos.iter().map(|x| (x.texte.as_str(), x.fait)).collect();
+        assert_eq!(textes, [("Ex 1", true), ("Ex 2", false), ("Ex 3", false)]);
+        // Réordonner / cocher / retirer : la liste envoyée remplace l'ancienne.
+        let d = db
+            .definir_todos_devoir(d.id, vec![t("Ex 3", true), t("Ex 1", true)])
+            .unwrap();
+        assert_eq!(d.todos.len(), 2);
+        assert_eq!(d.todos[0].texte, "Ex 3");
+        assert_eq!(db.lister_devoirs().unwrap()[0].todos, d.todos);
+        assert!(db.definir_todos_devoir(d.id, vec![t("  ", false)]).is_err());
+        assert!(db.definir_todos_devoir(999, vec![]).is_err());
+        db.supprimer_devoir(d.id).unwrap();
+        let restantes: i64 = db
+            .verrou()
+            .unwrap()
+            .query_row("SELECT COUNT(*) FROM sous_taches", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(restantes, 0);
+    }
+
+    #[test]
+    fn import_avec_et_sans_todos() {
+        let db = Db::en_memoire().unwrap();
+        let json = r#"[
+            {"titre":"Ancien format"},
+            {"titre":"TD Maths","todos":[{"texte":"Exercice 1","fait":true},{"texte":"Exercice 2"}]}
+        ]"#;
+        assert_eq!(db.importer_devoirs_json(json).unwrap(), 2);
+        let l = db.lister_devoirs().unwrap();
+        assert!(l[0].todos.is_empty());
+        assert_eq!(l[1].todos.len(), 2);
+        assert!(l[1].todos[0].fait && !l[1].todos[1].fait);
+        // Export -> import : identique ; l'ancien devoir reste sans clé `todos`.
+        let export = serde_json::to_string(&db.exporter_devoirs().unwrap()).unwrap();
+        assert_eq!(export.matches("todos").count(), 1);
+        let autre = Db::en_memoire().unwrap();
+        autre.importer_devoirs_json(&export).unwrap();
+        assert_eq!(
+            autre.exporter_devoirs().unwrap(),
+            db.exporter_devoirs().unwrap()
+        );
+        assert!(db
+            .importer_devoirs_json(r#"[{"titre":"x","todos":[{"texte":""}]}]"#)
+            .is_err());
     }
 
     #[test]

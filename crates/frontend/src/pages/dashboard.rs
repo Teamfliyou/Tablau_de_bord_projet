@@ -34,6 +34,7 @@ pub fn Dashboard() -> impl IntoView {
                 type_: "devoir".into(),
                 statut: "a_faire".into(),
                 tags: Vec::new(),
+                todos: Vec::new(),
             },
             move || nouveau.set(String::new()),
         );

@@ -19,7 +19,7 @@ Le projet est **100 % Rust** : un même frontend (Leptos, compilé en WebAssembl
 |---|---|
 | 📅 **Synchronisation ADE** | Emploi du temps du jour et de la semaine depuis le flux iCal, actualisation toutes les 60 s, badge « EN COURS », navigation de semaine en semaine, mode hors ligne. |
 | 🏷️ **Filtres** | Détection automatique des groupes (TP/TD/Khôlles), types (DS, IE, Exam) et matières. |
-| 📋 **Devoirs (Kanban)** | Ajout, modification, statuts, échéances (J-X, retard), export / import JSON. |
+| 📋 **Devoirs (Kanban)** | Ajout, modification, statuts, échéances (J-X, retard), sous-tâches (to-do list) avec progression, tags, export / import JSON. |
 | 🤖 **Plan de révision IA** | Gemini avec réponse JSON stricte ; mode simulation sans clé ou en cas d'erreur. |
 | ⚙️ **Configuration** | Lien ADE, clé Gemini, modèle, dock ou barre latérale, thème clair / sombre / auto. |
 | 🔐 **Comptes (Web)** | Inscription / connexion, données isolées par utilisateur. |
@@ -68,6 +68,29 @@ Voir [.env.example](.env.example) : `SECRET_KEY`, `PORT` / `BIND_ADDR`, `DATABAS
 ### Migrer une ancienne base Python
 
 Pointez `DATABASE_PATH` (ou l'ancienne `DATABASE_URL=sqlite:///…`) vers votre ancien `app.db`. Au démarrage, une sauvegarde est créée dans `sauvegardes/`, puis le schéma est complété sans rien supprimer. Définissez le même `SECRET_KEY` pour conserver les sessions ouvertes.
+
+### Sous-tâches (to-do) et import / export JSON
+
+Chaque carte du Kanban peut contenir une to-do list (*crayon → Sous-tâches* : ajouter, modifier, cocher, supprimer, monter / descendre). La carte affiche la progression (`2/5` + barre). Le fichier d'import / export est une liste de devoirs ; le champ `todos` est facultatif (un fichier sans `todos` s'importe comme avant) et `fait` vaut `false` par défaut. Limites : 100 sous-tâches par devoir, 200 caractères chacune. L'export n'écrit `todos` que pour les devoirs qui en ont, et se réimporte à l'identique.
+
+```json
+[
+  {
+    "titre": "TD Maths",
+    "matiere": "Mathématiques",
+    "echeance": "2026-11-10",
+    "type": "devoir",
+    "statut": "en_cours",
+    "tags": [{ "nom": "TD", "couleur": "#6366f1" }],
+    "todos": [
+      { "texte": "Exercice 1", "fait": true },
+      { "texte": "Exercice 2", "fait": false }
+    ]
+  }
+]
+```
+
+Exemple prêt à importer : [docs/exemple-import.json](docs/exemple-import.json).
 
 ## 🖥️ Application Windows
 

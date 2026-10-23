@@ -13,7 +13,7 @@ use crate::util;
 use gloo_timers::callback::Interval;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use tdb_shared::{ConfigUpdate, Devoir, DevoirModification};
+use tdb_shared::{ConfigUpdate, Devoir, DevoirModification, TodoEntree, TODOS_PAR_DEVOIR_MAX};
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -298,6 +298,87 @@ fn EditionDevoir(devoir: Devoir) -> impl IntoView {
         });
     };
 
+    // To-do list : chaque action enregistre immédiatement la liste complète (ordre et états).
+    let todos = RwSignal::new(
+        devoir
+            .todos
+            .iter()
+            .map(|t| (t.texte.clone(), t.fait))
+            .collect::<Vec<(String, bool)>>(),
+    );
+    let nouveau_todo = RwSignal::new(String::new());
+    let sauver_todos = move |liste: Vec<(String, bool)>| {
+        let entrees = liste
+            .iter()
+            .map(|(texte, fait)| TodoEntree {
+                texte: texte.clone(),
+                fait: *fait,
+            })
+            .collect::<Vec<_>>();
+        spawn_local(async move {
+            match api::definir_todos_devoir(id, &entrees).await {
+                Ok(d) => {
+                    erreur.set(String::new());
+                    todos.set(d.todos.into_iter().map(|t| (t.texte, t.fait)).collect());
+                    etat.charger_devoirs_async().await;
+                }
+                Err(e) => erreur.set(etat.message(e)),
+            }
+        });
+    };
+    let ajouter_todo = move || {
+        let texte = nouveau_todo.get_untracked().trim().to_string();
+        if texte.is_empty() {
+            return;
+        }
+        let mut liste = todos.get_untracked();
+        if liste.len() >= TODOS_PAR_DEVOIR_MAX {
+            erreur.set("Un devoir ne peut pas avoir plus de 100 sous-tâches.".into());
+            return;
+        }
+        liste.push((texte, false));
+        nouveau_todo.set(String::new());
+        sauver_todos(liste);
+    };
+    let modifier_todo = move |i: usize, texte: String| {
+        let texte = texte.trim().to_string();
+        let mut liste = todos.get_untracked();
+        match liste.get(i) {
+            Some((ancien, _)) if *ancien == texte => {}
+            Some(_) if texte.is_empty() => {
+                liste.remove(i);
+                sauver_todos(liste);
+            }
+            Some(_) => {
+                liste[i].0 = texte;
+                sauver_todos(liste);
+            }
+            None => {}
+        }
+    };
+    let cocher_todo = move |i: usize| {
+        let mut liste = todos.get_untracked();
+        if let Some(t) = liste.get_mut(i) {
+            t.1 = !t.1;
+            sauver_todos(liste);
+        }
+    };
+    let supprimer_todo = move |i: usize| {
+        let mut liste = todos.get_untracked();
+        if i < liste.len() {
+            liste.remove(i);
+            sauver_todos(liste);
+        }
+    };
+    let deplacer_todo = move |i: usize, sens: i32| {
+        let mut liste = todos.get_untracked();
+        let j = i as i32 + sens;
+        if j >= 0 && (j as usize) < liste.len() {
+            liste.swap(i, j as usize);
+            sauver_todos(liste);
+        }
+    };
+
     let enregistrer = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
         spawn_local(async move {
@@ -325,7 +406,7 @@ fn EditionDevoir(devoir: Devoir) -> impl IntoView {
     view! {
         <div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" on:click=move |_| fermer()></div>
-            <div class="relative w-full max-w-lg bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-2xl p-6 sm:p-8">
+            <div class="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white/90 backdrop-blur-2xl rounded-3xl border border-white/50 shadow-2xl p-6 sm:p-8">
                 <h3 class="text-lg font-bold text-slate-900">"Modifier le devoir"</h3>
                 <form class="mt-5 space-y-4" on:submit=enregistrer>
                     <div>
@@ -375,6 +456,46 @@ fn EditionDevoir(devoir: Devoir) -> impl IntoView {
                                     }
                                 }).collect_view().into_any()
                             }}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-sm font-medium text-slate-700">"Sous-tâches"</label>
+                            <span class="text-xs text-slate-500 tabular-nums">{move || { let l = todos.get(); format!("{}/{}", l.iter().filter(|t| t.1).count(), l.len()) }}</span>
+                        </div>
+                        <ul class="space-y-1.5">
+                            {move || todos.get().into_iter().enumerate().map(|(i, (texte, fait))| {
+                                let dernier = i + 1 == todos.get_untracked().len();
+                                view! {
+                                    <li class="flex items-center gap-1.5 rounded-xl bg-slate-50/60 border border-slate-100 p-1.5">
+                                        <input type="checkbox" class="h-5 w-5 shrink-0 accent-indigo-600 cursor-pointer" prop:checked=fait on:change=move |_| cocher_todo(i) />
+                                        <input type="text" maxlength="200"
+                                            class=format!("min-w-0 flex-1 bg-transparent px-1.5 py-1 text-sm focus:outline-none focus:bg-white/70 rounded-lg {}", if fait { "line-through text-slate-400" } else { "text-slate-800" })
+                                            prop:value=texte.clone()
+                                            on:keydown=move |ev| if ev.key() == "Enter" { ev.prevent_default(); modifier_todo(i, event_target_value(&ev)); }
+                                            on:change=move |ev| modifier_todo(i, event_target_value(&ev)) />
+                                        <button type="button" title="Monter" prop:disabled=move || i == 0 class="text-slate-300 hover:text-indigo-500 disabled:opacity-30 transition" on:click=move |_| deplacer_todo(i, -1)>
+                                            <Icone nom="chevron-up" class="w-4 h-4" />
+                                        </button>
+                                        <button type="button" title="Descendre" prop:disabled=dernier class="text-slate-300 hover:text-indigo-500 disabled:opacity-30 transition" on:click=move |_| deplacer_todo(i, 1)>
+                                            <Icone nom="chevron-down" class="w-4 h-4" />
+                                        </button>
+                                        <button type="button" title="Supprimer" class="text-slate-300 hover:text-rose-500 transition" on:click=move |_| supprimer_todo(i)>
+                                            <Icone nom="trash" class="w-4 h-4" />
+                                        </button>
+                                    </li>
+                                }
+                            }).collect_view()}
+                        </ul>
+                        <div class="mt-2 flex items-center gap-2">
+                            <input class=format!("{champ} flex-1 min-w-0") type="text" maxlength="200" placeholder="Ajouter une sous-tâche (ex. Exercice 1)"
+                                prop:value=move || nouveau_todo.get()
+                                on:input=move |ev| nouveau_todo.set(event_target_value(&ev))
+                                on:keydown=move |ev| if ev.key() == "Enter" { ev.prevent_default(); ajouter_todo(); } />
+                            <button type="button" class=BOUTON_PILULE on:click=move |_| ajouter_todo()>
+                                <Icone nom="plus" class="w-4 h-4" />
+                                "Ajouter"
+                            </button>
                         </div>
                     </div>
                     {move || { let m = erreur.get(); (!m.is_empty()).then(|| view! { <p class="rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-3.5">{m}</p> }) }}

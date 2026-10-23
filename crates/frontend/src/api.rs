@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use tdb_shared::{
     Categories, Config, ConfigUpdate, Connexion, CoursDuJourEtat, CoursSemaineEtat, Devoir,
     DevoirEntree, DevoirModification, Filtres, InfoMiseAJour, Inscription, Plan,
-    ProgressionMiseAJour, RapportMigration, ReponseAuth, Tag, TagEntree,
+    ProgressionMiseAJour, RapportMigration, ReponseAuth, Tag, TagEntree, TodoEntree,
 };
 use wasm_bindgen::prelude::*;
 
@@ -323,6 +323,21 @@ pub async fn definir_tags_devoir(id: i64, tags: &[i64]) -> Res<Devoir> {
     match mode() {
         Mode::Tauri => invoquer("definir_tags_devoir", json!({ "id": id, "tags": tags })).await,
         Mode::Web => http("PUT", &format!("/api/devoirs/{id}/tags"), Some(json!(tags))).await,
+    }
+}
+
+/// Remplace la to-do list d'un devoir (ordre, textes et états).
+pub async fn definir_todos_devoir(id: i64, todos: &[TodoEntree]) -> Res<Devoir> {
+    match mode() {
+        Mode::Tauri => invoquer("definir_todos_devoir", json!({ "id": id, "todos": todos })).await,
+        Mode::Web => {
+            http(
+                "PUT",
+                &format!("/api/devoirs/{id}/todos"),
+                Some(json!(todos)),
+            )
+            .await
+        }
     }
 }
 

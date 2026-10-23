@@ -306,6 +306,7 @@ mod tests {
             type_: type_.into(),
             statut: statut.into(),
             tags: Vec::new(),
+            todos: Vec::new(),
         }
     }
 

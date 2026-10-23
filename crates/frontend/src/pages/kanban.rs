@@ -33,6 +33,7 @@ pub fn Kanban() -> impl IntoView {
                 type_: type_.get_untracked(),
                 statut: statut.get_untracked(),
                 tags: Vec::new(),
+                todos: Vec::new(),
             },
             move || {
                 titre.set(String::new());
@@ -306,6 +307,26 @@ fn carte_devoir(etat: Etat, d: Devoir) -> impl IntoView {
                     </button>
                 </div>
             </div>
+            {(!d.todos.is_empty()).then(|| {
+                let total = d.todos.len();
+                let faits = d.todos.iter().filter(|t| t.fait).count();
+                let pourcent = faits * 100 / total;
+                let complet = faits == total;
+                view! {
+                    <div class="mt-2.5" title="Sous-tâches terminées">
+                        <div class="flex items-center justify-between text-xs text-slate-500">
+                            <span class="inline-flex items-center gap-1">
+                                <Icone nom="check" class="w-3.5 h-3.5" />
+                                "Sous-tâches"
+                            </span>
+                            <span class=format!("font-medium tabular-nums {}", if complet { "text-emerald-600" } else { "" })>{format!("{faits}/{total}")}</span>
+                        </div>
+                        <div class="mt-1 h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
+                            <div class=format!("h-full rounded-full transition-all {}", if complet { "bg-emerald-500" } else { "bg-indigo-500" }) style=format!("width:{pourcent}%")></div>
+                        </div>
+                    </div>
+                }
+            })}
             {(!d.tags.is_empty()).then(|| view! {
                 <div class="mt-2 flex flex-wrap gap-1.5">
                     {d.tags.iter().map(|t| view! {

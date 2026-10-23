@@ -10,7 +10,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use tdb_core::{Erreur, Resultat};
-use tdb_shared::{Devoir, DevoirEntree, DevoirModification, Tag, TagEntree, TAGS_PAR_DEVOIR_MAX};
+use tdb_shared::{
+    Devoir, DevoirEntree, DevoirModification, Tag, TagEntree, Todo, TodoEntree, TAGS_PAR_DEVOIR_MAX,
+};
 
 #[derive(Debug, Clone)]
 pub struct Utilisateur {
@@ -66,6 +68,7 @@ fn devoir(r: &rusqlite::Row<'_>) -> rusqlite::Result<Devoir> {
         type_: r.get(4)?,
         statut: r.get(5)?,
         tags: Vec::new(),
+        todos: Vec::new(),
     })
 }
 
@@ -100,7 +103,39 @@ fn inserer_devoir(conn: &Connection, user_id: i64, e: &DevoirEntree) -> rusqlite
             params![id, tag_id],
         )?;
     }
+    remplacer_todos(conn, id, &e.todos)?;
     Ok(id)
+}
+
+fn remplacer_todos(
+    conn: &Connection,
+    devoir_id: i64,
+    todos: &[TodoEntree],
+) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM sous_taches WHERE devoir_id = ?1", [devoir_id])?;
+    for (position, t) in todos.iter().enumerate() {
+        conn.execute(
+            "INSERT INTO sous_taches (devoir_id, texte, fait, position) VALUES (?1,?2,?3,?4)",
+            params![devoir_id, t.texte, t.fait, position as i64],
+        )?;
+    }
+    Ok(())
+}
+
+fn todos_du_devoir(conn: &Connection, devoir_id: i64) -> rusqlite::Result<Vec<Todo>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, texte, fait FROM sous_taches WHERE devoir_id = ?1 ORDER BY position, id",
+    )?;
+    let lignes = stmt
+        .query_map([devoir_id], |r| {
+            Ok(Todo {
+                id: r.get(0)?,
+                texte: r.get(1)?,
+                fait: r.get(2)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(lignes)
 }
 
 fn tags_du_devoir(conn: &Connection, devoir_id: i64) -> rusqlite::Result<Vec<Tag>> {
@@ -269,7 +304,18 @@ impl Store {
                 PRIMARY KEY (devoir_id, tag_id)
              );",
         )?;
-        tx.pragma_update(None, "user_version", 3)?;
+        // v4 : sous-tâches (to-do) des devoirs (ajout seul).
+        tx.execute_batch(
+            "CREATE TABLE IF NOT EXISTS sous_taches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                devoir_id INTEGER NOT NULL REFERENCES devoirs (id) ON DELETE CASCADE,
+                texte VARCHAR NOT NULL,
+                fait INTEGER NOT NULL DEFAULT 0,
+                position INTEGER NOT NULL DEFAULT 0
+             );
+             CREATE INDEX IF NOT EXISTS ix_sous_taches_devoir ON sous_taches (devoir_id, position);",
+        )?;
+        tx.pragma_update(None, "user_version", 4)?;
         tx.commit()?;
         Ok(())
     }
@@ -393,6 +439,7 @@ impl Store {
             .collect::<Result<Vec<_>, _>>()?;
         for d in &mut lignes {
             d.tags = tags_du_devoir(&conn, d.id)?;
+            d.todos = todos_du_devoir(&conn, d.id)?;
         }
         Ok(lignes)
     }
@@ -403,6 +450,7 @@ impl Store {
         let tx = conn.transaction()?;
         let id = inserer_devoir(&tx, user_id, &e)?;
         let tags = tags_du_devoir(&tx, id)?;
+        let todos = todos_du_devoir(&tx, id)?;
         tx.commit()?;
         Ok(Devoir {
             id,
@@ -412,6 +460,7 @@ impl Store {
             type_: e.type_,
             statut: e.statut,
             tags,
+            todos,
         })
     }
 
@@ -437,6 +486,7 @@ impl Store {
             params![d.id, user_id, d.titre, d.matiere, d.echeance, d.type_, d.statut],
         )?;
         d.tags = tags_du_devoir(&conn, id)?;
+        d.todos = todos_du_devoir(&conn, id)?;
         Ok(d)
     }
 
@@ -445,6 +495,11 @@ impl Store {
         // Associations d'abord, uniquement si le devoir appartient à l'utilisateur.
         conn.execute(
             "DELETE FROM devoir_tags WHERE devoir_id = ?1 AND EXISTS \
+             (SELECT 1 FROM devoirs WHERE id = ?1 AND user_id = ?2)",
+            params![id, user_id],
+        )?;
+        conn.execute(
+            "DELETE FROM sous_taches WHERE devoir_id = ?1 AND EXISTS \
              (SELECT 1 FROM devoirs WHERE id = ?1 AND user_id = ?2)",
             params![id, user_id],
         )?;
@@ -475,6 +530,31 @@ impl Store {
         }
         tx.commit()?;
         Ok(valides.len())
+    }
+
+    /// Remplace la to-do list d'un devoir de l'utilisateur (transaction).
+    pub fn definir_todos_devoir(
+        &self,
+        user_id: i64,
+        id: i64,
+        todos: Vec<TodoEntree>,
+    ) -> Resultat<Devoir> {
+        let todos = TodoEntree::valider_liste(todos).map_err(Erreur::Validation)?;
+        let mut conn = self.verrou()?;
+        let tx = conn.transaction()?;
+        let mut d = tx
+            .query_row(
+                &format!("SELECT {COLONNES_DEVOIR} FROM devoirs WHERE id = ?1 AND user_id = ?2"),
+                params![id, user_id],
+                devoir,
+            )
+            .optional()?
+            .ok_or_else(|| Erreur::Introuvable("Devoir introuvable".into()))?;
+        remplacer_todos(&tx, id, &todos)?;
+        d.tags = tags_du_devoir(&tx, id)?;
+        d.todos = todos_du_devoir(&tx, id)?;
+        tx.commit()?;
+        Ok(d)
     }
 
     // -------------------------------------------------------------------- Tags

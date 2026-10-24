@@ -398,6 +398,7 @@ fn EditionDevoir(devoir: Devoir) -> impl IntoView {
                 echeance: Some(echeance.get_untracked()),
                 type_: Some(type_.get_untracked()),
                 statut: Some(statut.get_untracked()),
+                ..Default::default()
             };
             match api::modifier_devoir(id, &m).await {
                 Ok(_) => {

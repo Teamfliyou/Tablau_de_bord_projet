@@ -232,11 +232,16 @@ fn carte(
                 }
             }
             on:dragend=move |_| { glisse.set(None); cible.set(None); }>
+            {(d.priorite > 0).then(|| view! {
+                <span class="w-priorite" style=format!("background:{}", ["", "var(--accent)", "var(--warning)", "var(--danger)"][d.priorite.min(3) as usize])
+                    role="img" aria-label=format!("Priorité {}", ["", "basse", "moyenne", "haute"][d.priorite.min(3) as usize])></span>
+            })}
             <p class="w-carte-titre">{d.titre.clone()}</p>
-            {(!d.matiere.is_empty() || !d.echeance.is_empty() || d.type_ != "devoir").then(|| view! {
+            {(!d.matiere.is_empty() || !d.echeance.is_empty() || d.type_ != "devoir" || !d.description.is_empty()).then(|| view! {
                 <div class="w-carte-meta">
                     {(d.type_ != "devoir").then(|| view! { <span class="w-chip w-chip-neutre">{type_libelle(&d.type_).to_string()}</span> })}
                     {(!d.matiere.is_empty()).then(|| view! { <span>{d.matiere.clone()}</span> })}
+                    {(!d.description.is_empty()).then(|| view! { <span title="Contient une description" aria-label="Contient une description"><Icone nom="devoir" class="w-3 h-3" /></span> })}
                     {(!d.echeance.is_empty()).then(|| view! {
                         <span class=classe_echeance(&d)>{libelle_echeance(&d.echeance)}</span>
                     })}

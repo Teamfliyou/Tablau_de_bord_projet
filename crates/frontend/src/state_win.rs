@@ -26,6 +26,8 @@ pub fn en_entree(d: &Devoir) -> DevoirEntree {
         echeance: d.echeance.clone(),
         type_: d.type_.clone(),
         statut: d.statut.clone(),
+        description: d.description.clone(),
+        priorite: d.priorite,
         tags: d
             .tags
             .iter()
@@ -118,6 +120,8 @@ impl Etat {
             statut: statut.to_string(),
             tags: vec![],
             todos: vec![],
+            description: String::new(),
+            priorite: 0,
         };
         spawn_local(async move {
             match api::creer_devoir(&entree).await {

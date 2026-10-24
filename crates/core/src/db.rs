@@ -50,6 +50,9 @@ const MIGRATIONS: &[&str] = &[
         position INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX ix_sous_taches_devoir ON sous_taches (devoir_id, position);",
+    // v4 : description et priorité des devoirs (ajout de colonnes avec valeurs par défaut).
+    "ALTER TABLE devoirs ADD COLUMN description TEXT NOT NULL DEFAULT '';
+    ALTER TABLE devoirs ADD COLUMN priorite INTEGER NOT NULL DEFAULT 0;",
 ];
 
 /// Paramètres de l'ancienne base trouvés dans `users` (le secret est renvoyé séparément).
@@ -209,7 +212,7 @@ impl Db {
     pub fn lister_devoirs(&self) -> Resultat<Vec<Devoir>> {
         let conn = self.verrou()?;
         let mut stmt = conn.prepare(
-            "SELECT id, titre, matiere, echeance, type, statut FROM devoirs ORDER BY id",
+            "SELECT id, titre, matiere, echeance, type, statut, description, priorite FROM devoirs ORDER BY id",
         )?;
         let mut lignes = stmt
             .query_map([], ligne_devoir)?
@@ -238,6 +241,8 @@ impl Db {
             statut: e.statut,
             tags,
             todos,
+            description: e.description,
+            priorite: e.priorite,
         })
     }
 
@@ -245,7 +250,7 @@ impl Db {
         let conn = self.verrou()?;
         let d = conn
             .query_row(
-                "SELECT id, titre, matiere, echeance, type, statut FROM devoirs WHERE id = ?1",
+                "SELECT id, titre, matiere, echeance, type, statut, description, priorite FROM devoirs WHERE id = ?1",
                 [id],
                 ligne_devoir,
             )
@@ -253,8 +258,8 @@ impl Db {
             .ok_or_else(|| Erreur::Introuvable("Devoir introuvable.".into()))?;
         let mut d = m.appliquer(d)?;
         conn.execute(
-            "UPDATE devoirs SET titre=?2, matiere=?3, echeance=?4, type=?5, statut=?6 WHERE id=?1",
-            params![d.id, d.titre, d.matiere, d.echeance, d.type_, d.statut],
+            "UPDATE devoirs SET titre=?2, matiere=?3, echeance=?4, type=?5, statut=?6, description=?7, priorite=?8 WHERE id=?1",
+            params![d.id, d.titre, d.matiere, d.echeance, d.type_, d.statut, d.description, d.priorite],
         )?;
         d.tags = tags_du_devoir(&conn, id)?;
         d.todos = todos_du_devoir(&conn, id)?;
@@ -339,7 +344,7 @@ impl Db {
         let tx = conn.transaction()?;
         let mut devoir = tx
             .query_row(
-                "SELECT id, titre, matiere, echeance, type, statut FROM devoirs WHERE id = ?1",
+                "SELECT id, titre, matiere, echeance, type, statut, description, priorite FROM devoirs WHERE id = ?1",
                 [id],
                 ligne_devoir,
             )
@@ -372,7 +377,7 @@ impl Db {
         let tx = conn.transaction()?;
         let mut devoir = tx
             .query_row(
-                "SELECT id, titre, matiere, echeance, type, statut FROM devoirs WHERE id = ?1",
+                "SELECT id, titre, matiere, echeance, type, statut, description, priorite FROM devoirs WHERE id = ?1",
                 [id],
                 ligne_devoir,
             )
@@ -396,6 +401,8 @@ impl Db {
                 echeance: d.echeance,
                 type_: d.type_,
                 statut: d.statut,
+                description: d.description,
+                priorite: d.priorite,
                 tags: d
                     .tags
                     .into_iter()
@@ -585,6 +592,8 @@ impl Db {
                 },
                 tags: Vec::new(),
                 todos: Vec::new(),
+                description: String::new(),
+                priorite: 0,
             };
             match e.valider() {
                 Ok(e) if !existants.contains(&e) && !nouveaux.contains(&e) => nouveaux.push(e),
@@ -661,6 +670,8 @@ fn ligne_devoir(r: &rusqlite::Row<'_>) -> rusqlite::Result<Devoir> {
         statut: r.get(5)?,
         tags: Vec::new(),
         todos: Vec::new(),
+        description: r.get(6)?,
+        priorite: r.get(7)?,
     })
 }
 
@@ -675,8 +686,8 @@ fn ligne_tag(r: &rusqlite::Row<'_>) -> rusqlite::Result<Tag> {
 /// Insère un devoir et ses tags (créés au besoin, par nom sans tenir compte de la casse).
 fn inserer_devoir(conn: &Connection, e: &DevoirEntree) -> rusqlite::Result<i64> {
     conn.execute(
-        "INSERT INTO devoirs (titre, matiere, echeance, type, statut) VALUES (?1,?2,?3,?4,?5)",
-        params![e.titre, e.matiere, e.echeance, e.type_, e.statut],
+        "INSERT INTO devoirs (titre, matiere, echeance, type, statut, description, priorite) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+        params![e.titre, e.matiere, e.echeance, e.type_, e.statut, e.description, e.priorite],
     )?;
     let id = conn.last_insert_rowid();
     for t in &e.tags {
@@ -783,6 +794,8 @@ mod tests {
             statut: "a_faire".into(),
             tags: Vec::new(),
             todos: Vec::new(),
+            description: String::new(),
+            priorite: 0,
         }
     }
 

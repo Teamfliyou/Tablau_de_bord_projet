@@ -69,6 +69,8 @@ fn devoir(r: &rusqlite::Row<'_>) -> rusqlite::Result<Devoir> {
         statut: r.get(5)?,
         tags: Vec::new(),
         todos: Vec::new(),
+        description: String::new(),
+        priorite: 0,
     })
 }
 
@@ -461,6 +463,8 @@ impl Store {
             statut: e.statut,
             tags,
             todos,
+            description: String::new(),
+            priorite: 0,
         })
     }
 

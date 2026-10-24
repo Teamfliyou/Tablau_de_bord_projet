@@ -19,6 +19,8 @@ pub fn Inspecteur(id: i64) -> impl IntoView {
     let echeance = RwSignal::new(devoir.echeance.clone());
     let type_ = RwSignal::new(devoir.type_.clone());
     let statut = RwSignal::new(devoir.statut.clone());
+    let description = RwSignal::new(devoir.description.clone());
+    let priorite = RwSignal::new(devoir.priorite);
     let erreur = RwSignal::new(String::new());
     let tags_choisis = RwSignal::new(devoir.tags.iter().map(|t| t.id).collect::<Vec<i64>>());
     let todos = RwSignal::new(devoir.todos.iter().map(|t| (t.texte.clone(), t.fait)).collect::<Vec<(String, bool)>>());
@@ -40,6 +42,8 @@ pub fn Inspecteur(id: i64) -> impl IntoView {
             echeance: Some(echeance.get_untracked()),
             type_: Some(type_.get_untracked()),
             statut: Some(statut.get_untracked()),
+            description: Some(description.get_untracked()),
+            priorite: Some(priorite.get_untracked()),
         };
         spawn_local(async move {
             match api::modifier_devoir(id, &m).await {
@@ -216,6 +220,24 @@ pub fn Inspecteur(id: i64) -> impl IntoView {
                         <input id="insp-echeance" class="w-champ" type="date" prop:value=move || echeance.get()
                             on:change=move |ev| { echeance.set(event_target_value(&ev)); sauver_champs(); } />
                     </div>
+                </div>
+
+                <div>
+                    <span class="w-label" id="insp-prio">"Priorité"</span>
+                    <div class="w-segment" role="group" aria-labelledby="insp-prio">
+                        {[(0u8, "Aucune"), (1, "Basse"), (2, "Moyenne"), (3, "Haute")].into_iter().map(|(p, l)| view! {
+                            <button type="button" aria-pressed=move || if priorite.get() == p { "true" } else { "false" }
+                                on:click=move |_| { priorite.set(p); sauver_champs(); }>{l}</button>
+                        }).collect_view()}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="w-label" for="insp-desc">"Description"</label>
+                    <textarea id="insp-desc" class="w-textarea" rows="3" maxlength="2000" placeholder="Notes, consignes, liens…"
+                        prop:value=move || description.get()
+                        on:input=move |ev| description.set(event_target_value(&ev))
+                        on:blur=move |_| sauver_champs()></textarea>
                 </div>
 
                 <div>

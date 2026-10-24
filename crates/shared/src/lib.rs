@@ -25,6 +25,12 @@ pub struct Devoir {
     /// Sous-tâches (to-do list) ; absentes des anciennes données : liste vide.
     #[serde(default)]
     pub todos: Vec<Todo>,
+    /// Notes libres (absentes des anciennes données : vide).
+    #[serde(default)]
+    pub description: String,
+    /// 0 = aucune, 1 = basse, 2 = moyenne, 3 = haute.
+    #[serde(default)]
+    pub priorite: u8,
 }
 
 /// Élément de to-do d'un devoir.
@@ -104,6 +110,31 @@ pub struct DevoirEntree {
     /// Sous-tâches avec leur état ; absentes des anciens fichiers : liste vide.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub todos: Vec<TodoEntree>,
+    /// Absents des anciens fichiers : valeurs par défaut, export identique à l'ancien format.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
+    #[serde(default, skip_serializing_if = "est_zero")]
+    pub priorite: u8,
+}
+
+fn est_zero(p: &u8) -> bool {
+    *p == 0
+}
+
+pub const DESCRIPTION_MAX: usize = 2000;
+pub const PRIORITE_MAX: u8 = 3;
+
+pub fn valider_description(d: &str) -> Result<(), String> {
+    if d.chars().count() > DESCRIPTION_MAX {
+        return Err("La description est limitée à 2000 caractères.".into());
+    }
+    Ok(())
+}
+pub fn valider_priorite(p: u8) -> Result<(), String> {
+    if p > PRIORITE_MAX {
+        return Err("Priorité invalide.".into());
+    }
+    Ok(())
 }
 
 fn type_defaut() -> String {
@@ -122,6 +153,8 @@ pub struct DevoirModification {
     #[serde(rename = "type")]
     pub type_: Option<String>,
     pub statut: Option<String>,
+    pub description: Option<String>,
+    pub priorite: Option<u8>,
 }
 
 impl DevoirEntree {
@@ -135,6 +168,9 @@ impl DevoirEntree {
         valider_echeance(&self.echeance)?;
         valider_type(&self.type_)?;
         valider_statut(&self.statut)?;
+        self.description = self.description.trim().to_string();
+        valider_description(&self.description)?;
+        valider_priorite(self.priorite)?;
         if self.tags.len() > TAGS_PAR_DEVOIR_MAX {
             return Err("Un devoir ne peut pas avoir plus de 20 tags.".into());
         }
@@ -217,6 +253,14 @@ impl DevoirModification {
         if let Some(v) = self.statut {
             valider_statut(&v)?;
             d.statut = v;
+        }
+        if let Some(v) = self.description {
+            d.description = v.trim().to_string();
+            valider_description(&d.description)?;
+        }
+        if let Some(v) = self.priorite {
+            valider_priorite(v)?;
+            d.priorite = v;
         }
         Ok(d)
     }

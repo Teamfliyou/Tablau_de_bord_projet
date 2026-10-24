@@ -152,6 +152,7 @@ pub fn FeuilleImport() -> impl IntoView {
                         let invalides = a.invalides();
                         let valides = total - invalides;
                         let contenu = a.contenu.clone();
+                        let bloque = move || invalides > 0 || en_cours.get();
                         view! {
                             <p class="w-aide">
                                 {format!("{} · {total} entrée{} détectée{}", a.nom, if total > 1 { "s" } else { "" }, if total > 1 { "s" } else { "" })}
@@ -175,8 +176,8 @@ pub fn FeuilleImport() -> impl IntoView {
                             {move || { let m = erreur.get(); (!m.is_empty()).then(|| view! { <p role="alert" style="color:var(--danger);font-size:13px">{m}</p> }) }}
                             <div class="w-feuille-pied">
                                 <button type="button" class="w-btn" on:click=move |_| { erreur.set(String::new()); etape.set(Etape::Choix); }>"Choisir un autre fichier"</button>
-                                <button type="button" class="w-btn w-btn-primaire" prop:disabled=move || invalides > 0 || en_cours.get()
-                                    on:click=move |_| confirmer(contenu.clone())>
+                                <button type="button" class="w-btn w-btn-primaire" on:click=move |_| confirmer(contenu.clone())
+                                    prop:disabled=bloque>
                                     {move || if en_cours.get() { "Import…".to_string() } else { format!("Importer {valides} devoir{}", if valides > 1 { "s" } else { "" }) }}
                                 </button>
                             </div>

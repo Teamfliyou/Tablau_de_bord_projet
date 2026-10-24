@@ -156,6 +156,17 @@ async fn importer_devoirs(app: tauri::AppHandle, s: Etat<'_>) -> Resultat<Option
     Ok(Some(s.db.importer_devoirs_json(&contenu)?))
 }
 
+/// Import d'un contenu JSON lu par l'interface (aperçu puis confirmation) : taille bornée, validation atomique.
+#[tauri::command]
+async fn importer_devoirs_contenu(s: Etat<'_>, contenu: String) -> Resultat<usize> {
+    if contenu.len() as u64 > IMPORT_MAX_OCTETS {
+        return Err(Erreur::Validation(
+            "Fichier invalide ou trop volumineux (2 Mo maximum).".into(),
+        ));
+    }
+    Ok(s.db.importer_devoirs_json(&contenu)?)
+}
+
 /// Importe les devoirs et paramètres d'une ancienne base SQLite de la version Python (lecture seule).
 #[tauri::command]
 async fn migrer_ancienne_base(
@@ -251,6 +262,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             definir_todos_devoir,
             exporter_devoirs,
             importer_devoirs,
+            importer_devoirs_contenu,
             migrer_ancienne_base,
             generer_plan,
             version_application,

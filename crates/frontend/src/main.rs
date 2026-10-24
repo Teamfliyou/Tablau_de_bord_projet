@@ -4,6 +4,8 @@ mod icons;
 mod maj;
 mod pages;
 mod state;
+mod state_win;
+mod win;
 mod ui;
 mod util;
 

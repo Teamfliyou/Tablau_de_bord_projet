@@ -129,6 +129,14 @@ pub struct Etat {
     pub filtres_matieres: RwSignal<Vec<String>>,
     pub onboarding_visible: RwSignal<bool>,
     pub onboarding_ignore: RwSignal<bool>,
+    // Interface Windows (coquille type app Mac)
+    pub recherche: RwSignal<String>,
+    pub palette: RwSignal<bool>,
+    pub sb_ferme: RwSignal<bool>,
+    pub import_ouvert: RwSignal<bool>,
+    pub menu_ctx: RwSignal<Option<(f64, f64, i64)>>,
+    pub annulables: RwSignal<Vec<crate::state_win::Annul>>,
+    pub refaisables: RwSignal<Vec<crate::state_win::Annul>>,
 }
 
 impl Etat {
@@ -173,6 +181,13 @@ impl Etat {
             filtres_matieres: RwSignal::new(vec![]),
             onboarding_visible: RwSignal::new(false),
             onboarding_ignore: RwSignal::new(false),
+            recherche: RwSignal::new(String::new()),
+            palette: RwSignal::new(false),
+            sb_ferme: RwSignal::new(false),
+            import_ouvert: RwSignal::new(false),
+            menu_ctx: RwSignal::new(None),
+            annulables: RwSignal::new(vec![]),
+            refaisables: RwSignal::new(vec![]),
         }
     }
 

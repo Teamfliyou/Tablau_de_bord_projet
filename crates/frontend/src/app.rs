@@ -47,9 +47,17 @@ pub fn App() -> impl IntoView {
     util::surveiller_theme_systeme(move || etat.appliquer_theme());
     etat.appliquer_theme();
 
+    // L'application Windows utilise la nouvelle interface ; la version Web garde l'interface historique.
+    let windows = etat.mode == Mode::Tauri;
+    util::definir_classe_racine("win", windows);
+
     view! {
         {move || if etat.authentifie.get() {
-            view! { <Application /> }.into_any()
+            if windows {
+                view! { <crate::win::shell::ApplicationWin /> }.into_any()
+            } else {
+                view! { <Application /> }.into_any()
+            }
         } else {
             view! { <Authentification /> }.into_any()
         }}
@@ -183,7 +191,7 @@ fn Application() -> impl IntoView {
 
 /// Première configuration : lien ADE (obligatoire) et clé Gemini (facultative).
 #[component]
-fn Onboarding() -> impl IntoView {
+pub fn Onboarding() -> impl IntoView {
     let etat = expect_context::<Etat>();
     let ade = RwSignal::new(String::new());
     let cle = RwSignal::new(String::new());

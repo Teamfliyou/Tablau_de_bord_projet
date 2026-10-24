@@ -14,7 +14,8 @@ js-sys = "0.3"
 web-sys = { version = "0.3", features = [
     "Window", "Document", "Element", "HtmlElement", "HtmlInputElement", "HtmlAnchorElement",
     "DomTokenList", "Storage", "Navigator", "MediaQueryList", "Blob", "BlobPropertyBag", "File",
-    "FileList", "Url", "Event", "EventTarget",
+    "FileList", "Url", "Event", "EventTarget", "DragEvent", "DataTransfer", "MouseEvent",
+    "KeyboardEvent", "HtmlTextAreaElement", "DomRect",
 ] }
 gloo-net = { version = "0.6", default-features = false, features = ["http", "json"] }
 gloo-timers = { version = "0.3", features = ["futures"] }

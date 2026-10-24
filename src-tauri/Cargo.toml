@@ -1,6 +1,6 @@
 [package]
 name = "tableau-de-bord-etudiant"
-version = "4.4.0"
+version = "5.0.0"
 description = "Tableau de bord étudiant : emploi du temps ADE, devoirs Kanban et plan de révision IA"
 authors = ["Teamfliyou"]
 edition = "2021"

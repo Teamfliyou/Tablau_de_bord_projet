@@ -4965,7 +4965,7 @@ dependencies = [
 
 [[package]]
 name = "tableau-de-bord-etudiant"
-version = "4.4.0"
+version = "5.0.0"
 dependencies = [
  "base64 0.22.1",
  "keyring",

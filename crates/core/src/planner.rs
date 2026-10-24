@@ -307,6 +307,8 @@ mod tests {
             statut: statut.into(),
             tags: Vec::new(),
             todos: Vec::new(),
+            description: String::new(),
+            priorite: 0,
         }
     }
 

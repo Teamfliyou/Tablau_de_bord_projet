@@ -34,6 +34,8 @@ pub fn Kanban() -> impl IntoView {
                 statut: statut.get_untracked(),
                 tags: Vec::new(),
                 todos: Vec::new(),
+                description: String::new(),
+                priorite: 0,
             },
             move || {
                 titre.set(String::new());

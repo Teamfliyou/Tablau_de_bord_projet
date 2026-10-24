@@ -460,6 +460,8 @@ async fn exporter_devoirs(
             echeance: d.echeance,
             type_: d.type_,
             statut: d.statut,
+            description: d.description,
+            priorite: d.priorite,
             tags: d
                 .tags
                 .into_iter()

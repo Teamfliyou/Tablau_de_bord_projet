@@ -194,3 +194,13 @@ pub fn basculer(liste: &mut Vec<String>, valeur: &str) {
         None => liste.push(valeur.to_string()),
     }
 }
+
+/// Ajoute ou retire une classe sur l'élément racine (<html>).
+pub fn definir_classe_racine(classe: &str, actif: bool) {
+    if let Some(racine) = fenetre()
+        .and_then(|w| w.document())
+        .and_then(|d| d.document_element())
+    {
+        let _ = racine.class_list().toggle_with_force(classe, actif);
+    }
+}

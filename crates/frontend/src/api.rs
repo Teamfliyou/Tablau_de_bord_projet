@@ -446,7 +446,7 @@ pub async fn importer_devoirs() -> Res<Option<usize>> {
     }
 }
 
-async fn choisir_fichier_json() -> Res<Option<String>> {
+pub async fn choisir_fichier_json() -> Res<Option<String>> {
     let erreur = || ErreurApi::nouvelle("Impossible d'ouvrir le sélecteur de fichier.");
     let document = util::fenetre()
         .and_then(|w| w.document())
@@ -486,4 +486,33 @@ async fn choisir_fichier_json() -> Res<Option<String>> {
 /// Import d'une ancienne base SQLite : réservé à l'application Windows.
 pub async fn migrer_ancienne_base() -> Res<Option<RapportMigration>> {
     invoquer("migrer_ancienne_base", json!({})).await
+}
+
+/// Import d'un contenu JSON déjà lu (après aperçu et confirmation dans l'interface).
+pub async fn importer_contenu(contenu: &str) -> Res<usize> {
+    let valeur: Value = serde_json::from_str(contenu).map_err(|_| {
+        ErreurApi::nouvelle("Fichier JSON invalide : une liste de devoirs est attendue.")
+    })?;
+    match mode() {
+        Mode::Tauri => invoquer("importer_devoirs_contenu", json!({ "contenu": contenu })).await,
+        Mode::Web => {
+            let r: Value = http("POST", "/api/devoirs/import", Some(valeur)).await?;
+            Ok(r.get("nb_importes").and_then(Value::as_u64).unwrap_or(0) as usize)
+        }
+    }
+}
+
+/// Lit un fichier (sélecteur ou glisser-déposer) borné à la taille d'import maximale.
+pub async fn lire_fichier(fichier: web_sys::File) -> Res<String> {
+    if fichier.size() > tdb_shared::IMPORT_MAX_OCTETS as f64 {
+        return Err(ErreurApi::nouvelle(
+            "Fichier invalide ou trop volumineux (2 Mo maximum).",
+        ));
+    }
+    let texte = wasm_bindgen_futures::JsFuture::from(fichier.text())
+        .await
+        .map_err(|_| ErreurApi::nouvelle("Le fichier n'est pas un texte UTF-8 valide."))?;
+    texte
+        .as_string()
+        .ok_or_else(|| ErreurApi::nouvelle("Le fichier n'est pas un texte UTF-8 valide."))
 }

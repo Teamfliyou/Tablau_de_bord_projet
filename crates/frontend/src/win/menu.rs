@@ -12,8 +12,14 @@ pub fn MenuContextuel(x: f64, y: f64, id: i64) -> impl IntoView {
     let (l, h) = crate::util::fenetre()
         .map(|w| {
             (
-                w.inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1280.0),
-                w.inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(800.0),
+                w.inner_width()
+                    .ok()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(1280.0),
+                w.inner_height()
+                    .ok()
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(800.0),
             )
         })
         .unwrap_or((1280.0, 800.0));

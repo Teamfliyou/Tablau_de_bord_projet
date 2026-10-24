@@ -1,6 +1,9 @@
 //! Coquille : barre latérale translucide, barre d'outils unifiée, contenu, inspecteur, raccourcis.
 
-use super::{dans_saisie, import::FeuilleImport, inspecteur::Inspecteur, kanban::Tableau, menu::MenuContextuel, palette::Palette, raccourci, tags::GestionTags, Ui};
+use super::{
+    dans_saisie, import::FeuilleImport, inspecteur::Inspecteur, kanban::Tableau,
+    menu::MenuContextuel, palette::Palette, raccourci, tags::GestionTags, Ui,
+};
 use crate::app::Onboarding;
 use crate::icons::Icone;
 use crate::pages::config::Configuration;
@@ -95,13 +98,23 @@ pub fn ApplicationWin() -> impl IntoView {
 
     let identifiant = move || {
         let u = etat.config.get().username;
-        if u.is_empty() { "Étudiant".to_string() } else { u }
+        if u.is_empty() {
+            "Étudiant".to_string()
+        } else {
+            u
+        }
     };
     let date_jour = util::date_longue(&js_sys::Date::new_0());
     let zone_kanban = move || etat.onglet.get() == Onglet::Devoirs;
     let titre_onglet = move || etat.onglet.get().libelle();
     let sombre = move || etat.theme_sombre();
-    let nb_tag = move |id: i64| etat.devoirs.with(|l| l.iter().filter(|d| d.tags.iter().any(|t| t.id == id)).count());
+    let nb_tag = move |id: i64| {
+        etat.devoirs.with(|l| {
+            l.iter()
+                .filter(|d| d.tags.iter().any(|t| t.id == id))
+                .count()
+        })
+    };
     let aller = move |o: Onglet| {
         etat.onglet.set(o);
         if util::fenetre()
@@ -220,7 +233,7 @@ pub fn ApplicationWin() -> impl IntoView {
                         />
                         <kbd>{raccourci("F")}</kbd>
                     </div>
-                    <button type="button" class="w-btn" title=move || format!("Importer des devoirs") on:click=move |_| etat.import_ouvert.set(true)>
+                    <button type="button" class="w-btn" title=move || "Importer des devoirs" on:click=move |_| etat.import_ouvert.set(true)>
                         <Icone nom="upload" />
                         <span class="w-cache-mobile">"Importer"</span>
                     </button>

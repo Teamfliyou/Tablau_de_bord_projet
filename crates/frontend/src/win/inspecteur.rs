@@ -11,7 +11,10 @@ use tdb_shared::{DevoirModification, TagEntree, TodoEntree, TODOS_PAR_DEVOIR_MAX
 #[component]
 pub fn Inspecteur(id: i64) -> impl IntoView {
     let etat = expect_context::<Etat>();
-    let Some(devoir) = etat.devoir_par_id(id).or_else(|| etat.edition.get_untracked()) else {
+    let Some(devoir) = etat
+        .devoir_par_id(id)
+        .or_else(|| etat.edition.get_untracked())
+    else {
         return ().into_any();
     };
     let titre = RwSignal::new(devoir.titre.clone());
@@ -23,7 +26,13 @@ pub fn Inspecteur(id: i64) -> impl IntoView {
     let priorite = RwSignal::new(devoir.priorite);
     let erreur = RwSignal::new(String::new());
     let tags_choisis = RwSignal::new(devoir.tags.iter().map(|t| t.id).collect::<Vec<i64>>());
-    let todos = RwSignal::new(devoir.todos.iter().map(|t| (t.texte.clone(), t.fait)).collect::<Vec<(String, bool)>>());
+    let todos = RwSignal::new(
+        devoir
+            .todos
+            .iter()
+            .map(|t| (t.texte.clone(), t.fait))
+            .collect::<Vec<(String, bool)>>(),
+    );
     let nouveau_todo = RwSignal::new(String::new());
     let nouveau_tag = RwSignal::new(String::new());
     let couleur_tag = RwSignal::new(COULEURS_TAG[5].to_string());
@@ -57,7 +66,11 @@ pub fn Inspecteur(id: i64) -> impl IntoView {
     };
     let changer_statut = move |nouveau: String| {
         statut.set(nouveau.clone());
-        if let Some(s) = COLONNES.iter().find(|(c, _, _)| *c == nouveau).map(|(c, _, _)| *c) {
+        if let Some(s) = COLONNES
+            .iter()
+            .find(|(c, _, _)| *c == nouveau)
+            .map(|(c, _, _)| *c)
+        {
             etat.deplacer_vers(id, s);
         }
     };
@@ -89,7 +102,10 @@ pub fn Inspecteur(id: i64) -> impl IntoView {
         if nom.is_empty() {
             return;
         }
-        let entree = TagEntree { nom, couleur: couleur_tag.get_untracked() };
+        let entree = TagEntree {
+            nom,
+            couleur: couleur_tag.get_untracked(),
+        };
         spawn_local(async move {
             match api::creer_tag(&entree).await {
                 Ok(t) => {
@@ -109,7 +125,13 @@ pub fn Inspecteur(id: i64) -> impl IntoView {
     };
 
     let sauver_todos = move |liste: Vec<(String, bool)>| {
-        let entrees = liste.iter().map(|(texte, fait)| TodoEntree { texte: texte.clone(), fait: *fait }).collect::<Vec<_>>();
+        let entrees = liste
+            .iter()
+            .map(|(texte, fait)| TodoEntree {
+                texte: texte.clone(),
+                fait: *fait,
+            })
+            .collect::<Vec<_>>();
         // Mise à jour optimiste : la case se coche immédiatement, le serveur confirme ensuite.
         todos.set(liste);
         spawn_local(async move {

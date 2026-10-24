@@ -13,8 +13,18 @@ struct Commande {
     action: Rc<dyn Fn()>,
 }
 
-fn commande(libelle: &str, icone: &'static str, raccourci: String, action: impl Fn() + 'static) -> Commande {
-    Commande { libelle: libelle.to_string(), icone, raccourci, action: Rc::new(action) }
+fn commande(
+    libelle: &str,
+    icone: &'static str,
+    raccourci: String,
+    action: impl Fn() + 'static,
+) -> Commande {
+    Commande {
+        libelle: libelle.to_string(),
+        icone,
+        raccourci,
+        action: Rc::new(action),
+    }
 }
 
 #[component]
@@ -26,21 +36,72 @@ pub fn Palette() -> impl IntoView {
 
     let commandes = move || -> Vec<Commande> {
         let mut v = vec![
-            commande("Aller au Dashboard", "dashboard", String::new(), move || etat.onglet.set(Onglet::Dashboard)),
-            commande("Aller à la Semaine", "calendar", String::new(), move || etat.onglet.set(Onglet::Semaine)),
-            commande("Aller au Kanban", "list", String::new(), move || etat.onglet.set(Onglet::Devoirs)),
-            commande("Ouvrir la Configuration", "gear", raccourci(","), move || etat.onglet.set(Onglet::Config)),
-            commande("Nouveau devoir", "plus", raccourci("N"), move || { etat.onglet.set(Onglet::Devoirs); ui.ajout_col.set(Some("a_faire")); }),
-            commande("Importer des devoirs…", "upload", String::new(), move || etat.import_ouvert.set(true)),
-            commande("Exporter les devoirs", "download", String::new(), move || etat.exporter_devoirs()),
-            commande("Gérer les tags", "tag", String::new(), move || etat.gestion_tags.set(true)),
-            commande("Afficher ou masquer la barre latérale", "sidebar", raccourci("\\"), move || etat.sb_ferme.update(|f| *f = !*f)),
-            commande("Basculer clair / sombre", "moon", String::new(), move || etat.basculer_theme()),
-            commande("Annuler", "undo", raccourci("Z"), move || etat.annuler()),
-            commande("Rétablir", "redo", raccourci("⇧Z"), move || etat.retablir()),
-            commande("Rechercher un devoir", "search", raccourci("F"), move || {
-                if let Some(c) = ui.recherche_ref.get_untracked() { let _ = c.focus(); }
+            commande(
+                "Aller au Dashboard",
+                "dashboard",
+                String::new(),
+                move || etat.onglet.set(Onglet::Dashboard),
+            ),
+            commande(
+                "Aller à la Semaine",
+                "calendar",
+                String::new(),
+                move || etat.onglet.set(Onglet::Semaine),
+            ),
+            commande("Aller au Kanban", "list", String::new(), move || {
+                etat.onglet.set(Onglet::Devoirs)
             }),
+            commande(
+                "Ouvrir la Configuration",
+                "gear",
+                raccourci(","),
+                move || etat.onglet.set(Onglet::Config),
+            ),
+            commande("Nouveau devoir", "plus", raccourci("N"), move || {
+                etat.onglet.set(Onglet::Devoirs);
+                ui.ajout_col.set(Some("a_faire"));
+            }),
+            commande(
+                "Importer des devoirs…",
+                "upload",
+                String::new(),
+                move || etat.import_ouvert.set(true),
+            ),
+            commande(
+                "Exporter les devoirs",
+                "download",
+                String::new(),
+                move || etat.exporter_devoirs(),
+            ),
+            commande("Gérer les tags", "tag", String::new(), move || {
+                etat.gestion_tags.set(true)
+            }),
+            commande(
+                "Afficher ou masquer la barre latérale",
+                "sidebar",
+                raccourci("\\"),
+                move || etat.sb_ferme.update(|f| *f = !*f),
+            ),
+            commande(
+                "Basculer clair / sombre",
+                "moon",
+                String::new(),
+                move || etat.basculer_theme(),
+            ),
+            commande("Annuler", "undo", raccourci("Z"), move || etat.annuler()),
+            commande("Rétablir", "redo", raccourci("⇧Z"), move || {
+                etat.retablir()
+            }),
+            commande(
+                "Rechercher un devoir",
+                "search",
+                raccourci("F"),
+                move || {
+                    if let Some(c) = ui.recherche_ref.get_untracked() {
+                        let _ = c.focus();
+                    }
+                },
+            ),
         ];
         let q = requete.get().trim().to_lowercase();
         if q.is_empty() {
@@ -50,14 +111,29 @@ pub fn Palette() -> impl IntoView {
         // Devoirs correspondants : ouvre l'inspecteur.
         let devoirs: Vec<Commande> = etat.devoirs.with(|l| {
             l.iter()
-                .filter(|d| d.titre.to_lowercase().contains(&q) || d.matiere.to_lowercase().contains(&q))
+                .filter(|d| {
+                    d.titre.to_lowercase().contains(&q) || d.matiere.to_lowercase().contains(&q)
+                })
                 .take(8)
                 .map(|d| {
                     let d = d.clone();
-                    commande(&format!("{}{}", d.titre, if d.matiere.is_empty() { String::new() } else { format!(" — {}", d.matiere) }), "devoir", String::new(), move || {
-                        etat.onglet.set(Onglet::Devoirs);
-                        etat.edition.set(Some(d.clone()));
-                    })
+                    commande(
+                        &format!(
+                            "{}{}",
+                            d.titre,
+                            if d.matiere.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" — {}", d.matiere)
+                            }
+                        ),
+                        "devoir",
+                        String::new(),
+                        move || {
+                            etat.onglet.set(Onglet::Devoirs);
+                            etat.edition.set(Some(d.clone()));
+                        },
+                    )
                 })
                 .collect()
         });

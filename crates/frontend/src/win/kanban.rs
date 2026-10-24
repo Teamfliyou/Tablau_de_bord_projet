@@ -26,7 +26,8 @@ pub fn Tableau() -> impl IntoView {
     // Devoir en cours de glissement et colonne survolée.
     let glisse: RwSignal<Option<i64>> = RwSignal::new(None);
     let cible: RwSignal<Option<&'static str>> = RwSignal::new(None);
-    let filtre_actif = move || etat.filtre_tag.get().is_some() || !etat.recherche.get().trim().is_empty();
+    let filtre_actif =
+        move || etat.filtre_tag.get().is_some() || !etat.recherche.get().trim().is_empty();
 
     view! {
         <div style="display:flex;flex-direction:column;flex:1;min-height:0">
@@ -169,14 +170,25 @@ fn carte(
     let id = d.id;
     let total = d.todos.len();
     let faits = d.todos.iter().filter(|t| t.fait).count();
-    let pourcent = if total == 0 { 0 } else { faits * 100 / total };
+    let pourcent = (faits * 100).checked_div(total).unwrap_or(0);
     let aria = format!(
         "{}{}{}",
         d.titre,
-        if d.matiere.is_empty() { String::new() } else { format!(", {}", d.matiere) },
-        if d.echeance.is_empty() { String::new() } else { format!(", {}", libelle_echeance(&d.echeance)) }
+        if d.matiere.is_empty() {
+            String::new()
+        } else {
+            format!(", {}", d.matiere)
+        },
+        if d.echeance.is_empty() {
+            String::new()
+        } else {
+            format!(", {}", libelle_echeance(&d.echeance))
+        }
     );
-    let selectionnee = move || etat.edition.with(|e| e.as_ref().is_some_and(|x| x.id == id));
+    let selectionnee = move || {
+        etat.edition
+            .with(|e| e.as_ref().is_some_and(|x| x.id == id))
+    };
     let d_ouvrir = d.clone();
     let ordre = ["a_faire", "en_cours", "termine"];
 
@@ -186,7 +198,9 @@ fn carte(
         match cle.as_str() {
             "Enter" | " " => {
                 ev.prevent_default();
-                if let Some(d) = etat.devoir_par_id(id) { etat.edition.set(Some(d)); }
+                if let Some(d) = etat.devoir_par_id(id) {
+                    etat.edition.set(Some(d));
+                }
             }
             "Delete" | "Backspace" => {
                 ev.prevent_default();
@@ -196,19 +210,36 @@ fn carte(
                 ev.prevent_default();
                 let liste = etat.devoirs_visibles(colonne_id);
                 if let Some(i) = liste.iter().position(|x| x.id == id) {
-                    let j = if cle == "ArrowDown" { i + 1 } else { i.wrapping_sub(1) };
-                    if let Some(v) = liste.get(j) { focaliser(&format!("[data-carte='{}']", v.id)); }
+                    let j = if cle == "ArrowDown" {
+                        i + 1
+                    } else {
+                        i.wrapping_sub(1)
+                    };
+                    if let Some(v) = liste.get(j) {
+                        focaliser(&format!("[data-carte='{}']", v.id));
+                    }
                 }
             }
             "ArrowLeft" | "ArrowRight" => {
                 ev.prevent_default();
-                let Some(c) = ordre.iter().position(|s| *s == colonne_id) else { return };
-                let n = if cle == "ArrowRight" { c + 1 } else { c.wrapping_sub(1) };
-                let Some(cible_col) = ordre.get(n) else { return };
+                let Some(c) = ordre.iter().position(|s| *s == colonne_id) else {
+                    return;
+                };
+                let n = if cle == "ArrowRight" {
+                    c + 1
+                } else {
+                    c.wrapping_sub(1)
+                };
+                let Some(cible_col) = ordre.get(n) else {
+                    return;
+                };
                 if ev.alt_key() {
                     etat.deplacer_vers(id, cible_col);
                     // Le focus suit la carte une fois la liste mise à jour.
-                    gloo_timers::callback::Timeout::new(120, move || focaliser(&format!("[data-carte='{id}']"))).forget();
+                    gloo_timers::callback::Timeout::new(120, move || {
+                        focaliser(&format!("[data-carte='{id}']"))
+                    })
+                    .forget();
                 } else if let Some(v) = etat.devoirs_visibles(cible_col).first() {
                     focaliser(&format!("[data-carte='{}']", v.id));
                 }

@@ -58,7 +58,8 @@ fn empiler(pile: RwSignal<Vec<Annul>>, a: Annul) {
 
 impl Etat {
     pub fn devoir_par_id(self, id: i64) -> Option<Devoir> {
-        self.devoirs.with(|l| l.iter().find(|d| d.id == id).cloned())
+        self.devoirs
+            .with(|l| l.iter().find(|d| d.id == id).cloned())
     }
 
     /// Devoirs d'un statut, filtrés par la recherche et le tag actif.

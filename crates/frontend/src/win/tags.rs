@@ -43,7 +43,10 @@ pub fn GestionTags() -> impl IntoView {
 
     let creer = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
-        let entree = TagEntree { nom: nom.get_untracked(), couleur: couleur.get_untracked() };
+        let entree = TagEntree {
+            nom: nom.get_untracked(),
+            couleur: couleur.get_untracked(),
+        };
         spawn_local(async move {
             match api::creer_tag(&entree).await {
                 Ok(_) => {
@@ -90,10 +93,16 @@ fn ligne_tag(etat: Etat, t: Tag, erreur: RwSignal<String>) -> impl IntoView {
     let nom = RwSignal::new(t.nom);
     let couleur = RwSignal::new(t.couleur);
     let enregistrer = move || {
-        let entree = TagEntree { nom: nom.get_untracked(), couleur: couleur.get_untracked() };
+        let entree = TagEntree {
+            nom: nom.get_untracked(),
+            couleur: couleur.get_untracked(),
+        };
         spawn_local(async move {
             match api::modifier_tag(id, &entree).await {
-                Ok(_) => { erreur.set(String::new()); etat.charger_devoirs_async().await; }
+                Ok(_) => {
+                    erreur.set(String::new());
+                    etat.charger_devoirs_async().await;
+                }
                 Err(e) => erreur.set(etat.message(e)),
             }
         });
@@ -102,7 +111,9 @@ fn ligne_tag(etat: Etat, t: Tag, erreur: RwSignal<String>) -> impl IntoView {
         spawn_local(async move {
             match api::supprimer_tag(id).await {
                 Ok(()) => {
-                    if etat.filtre_tag.get_untracked() == Some(id) { etat.filtre_tag.set(None); }
+                    if etat.filtre_tag.get_untracked() == Some(id) {
+                        etat.filtre_tag.set(None);
+                    }
                     erreur.set(String::new());
                     etat.charger_devoirs_async().await;
                 }

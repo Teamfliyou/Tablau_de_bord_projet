@@ -46,31 +46,60 @@ fn analyser(nom: &str, contenu: String) -> Result<Apercu, String> {
         return Err("Le fichier ne contient aucun devoir.".into());
     }
     if entrees.len() > IMPORT_MAX {
-        return Err(format!("Trop de devoirs : {IMPORT_MAX} au maximum par import."));
+        return Err(format!(
+            "Trop de devoirs : {IMPORT_MAX} au maximum par import."
+        ));
     }
     let lignes = entrees
         .into_iter()
         .enumerate()
         .map(|(i, v)| {
-            let titre_brut = v.get("titre").and_then(Value::as_str).unwrap_or("").to_string();
-            match serde_json::from_value::<DevoirEntree>(v).map_err(|e| e.to_string()).and_then(|d| d.valider()) {
+            let titre_brut = v
+                .get("titre")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            match serde_json::from_value::<DevoirEntree>(v)
+                .map_err(|e| e.to_string())
+                .and_then(|d| d.valider())
+            {
                 Ok(d) => {
                     let mut morceaux = vec![];
-                    if !d.matiere.is_empty() { morceaux.push(d.matiere.clone()); }
-                    if !d.echeance.is_empty() { morceaux.push(d.echeance.clone()); }
-                    if !d.todos.is_empty() { morceaux.push(format!("{} sous-tâche(s)", d.todos.len())); }
-                    if !d.tags.is_empty() { morceaux.push(format!("{} tag(s)", d.tags.len())); }
-                    Ligne { titre: d.titre, detail: morceaux.join(" · "), erreur: None }
+                    if !d.matiere.is_empty() {
+                        morceaux.push(d.matiere.clone());
+                    }
+                    if !d.echeance.is_empty() {
+                        morceaux.push(d.echeance.clone());
+                    }
+                    if !d.todos.is_empty() {
+                        morceaux.push(format!("{} sous-tâche(s)", d.todos.len()));
+                    }
+                    if !d.tags.is_empty() {
+                        morceaux.push(format!("{} tag(s)", d.tags.len()));
+                    }
+                    Ligne {
+                        titre: d.titre,
+                        detail: morceaux.join(" · "),
+                        erreur: None,
+                    }
                 }
                 Err(e) => Ligne {
-                    titre: if titre_brut.is_empty() { format!("Entrée {}", i + 1) } else { titre_brut },
+                    titre: if titre_brut.is_empty() {
+                        format!("Entrée {}", i + 1)
+                    } else {
+                        titre_brut
+                    },
                     detail: String::new(),
                     erreur: Some(e),
                 },
             }
         })
         .collect();
-    Ok(Apercu { nom: nom.to_string(), contenu, lignes })
+    Ok(Apercu {
+        nom: nom.to_string(),
+        contenu,
+        lignes,
+    })
 }
 
 #[component]
@@ -82,8 +111,13 @@ pub fn FeuilleImport() -> impl IntoView {
     let en_cours = RwSignal::new(false);
     let fermer = move || etat.import_ouvert.set(false);
 
-    let recevoir = move |nom: String, texte: Result<String, String>| match texte.and_then(|t| analyser(&nom, t)) {
-        Ok(a) => { erreur.set(String::new()); etape.set(Etape::Apercu(a)); }
+    let recevoir = move |nom: String, texte: Result<String, String>| match texte
+        .and_then(|t| analyser(&nom, t))
+    {
+        Ok(a) => {
+            erreur.set(String::new());
+            etape.set(Etape::Apercu(a));
+        }
         Err(e) => erreur.set(e),
     };
     let choisir = move || {
@@ -98,7 +132,13 @@ pub fn FeuilleImport() -> impl IntoView {
     let deposer = move |ev: leptos::ev::DragEvent| {
         ev.prevent_default();
         survol.set(false);
-        let Some(f) = ev.data_transfer().and_then(|d| d.files()).and_then(|l| l.get(0)) else { return };
+        let Some(f) = ev
+            .data_transfer()
+            .and_then(|d| d.files())
+            .and_then(|l| l.get(0))
+        else {
+            return;
+        };
         let nom = f.name();
         spawn_local(async move {
             let r = api::lire_fichier(f).await.map_err(|e| e.message);
@@ -118,7 +158,13 @@ pub fn FeuilleImport() -> impl IntoView {
             en_cours.set(false);
         });
     };
-    let barre = move |n: usize| move || match etape.get() { Etape::Choix => n <= 1, Etape::Apercu(_) => n <= 2, Etape::Termine(_) => true };
+    let barre = move |n: usize| {
+        move || match etape.get() {
+            Etape::Choix => n <= 1,
+            Etape::Apercu(_) => n <= 2,
+            Etape::Termine(_) => true,
+        }
+    };
 
     view! {
         <div class="w-voile centre" on:click=move |_| fermer()>

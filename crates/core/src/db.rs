@@ -1111,7 +1111,10 @@ mod tests {
         e.description = "  Voir le chapitre 3  ".into();
         e.priorite = 2;
         let d = db.creer_devoir(e).unwrap();
-        assert_eq!((d.description.as_str(), d.priorite), ("Voir le chapitre 3", 2));
+        assert_eq!(
+            (d.description.as_str(), d.priorite),
+            ("Voir le chapitre 3", 2)
+        );
         let m = db
             .modifier_devoir(
                 d.id,
@@ -1121,14 +1124,23 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!((m.description.as_str(), m.priorite), ("Voir le chapitre 3", 3));
+        assert_eq!(
+            (m.description.as_str(), m.priorite),
+            ("Voir le chapitre 3", 3)
+        );
         // Export -> import : conservé ; priorité invalide refusée.
         let json = serde_json::to_string(&db.exporter_devoirs().unwrap()).unwrap();
         let autre = Db::en_memoire().unwrap();
         autre.importer_devoirs_json(&json).unwrap();
         assert_eq!(autre.lister_devoirs().unwrap()[0].priorite, 3);
         assert!(db
-            .modifier_devoir(d.id, DevoirModification { priorite: Some(9), ..Default::default() })
+            .modifier_devoir(
+                d.id,
+                DevoirModification {
+                    priorite: Some(9),
+                    ..Default::default()
+                }
+            )
             .is_err());
     }
 }

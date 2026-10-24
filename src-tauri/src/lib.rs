@@ -164,7 +164,7 @@ async fn importer_devoirs_contenu(s: Etat<'_>, contenu: String) -> Resultat<usiz
             "Fichier invalide ou trop volumineux (2 Mo maximum).".into(),
         ));
     }
-    Ok(s.db.importer_devoirs_json(&contenu)?)
+    s.db.importer_devoirs_json(&contenu)
 }
 
 /// Importe les devoirs et paramètres d'une ancienne base SQLite de la version Python (lecture seule).

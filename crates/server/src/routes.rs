@@ -506,8 +506,9 @@ async fn plan_revision(
     State(s): State<AppState>,
     UtilisateurAuth(u): UtilisateurAuth,
     ApiQuery(q): ApiQuery<RequeteCours>,
-    ApiJson(options): ApiJson<planner::OptionsPlan>,
+    options: Option<Json<planner::OptionsPlan>>,
 ) -> ApiResult<Json<tdb_shared::Plan>> {
+    let options = options.map(|Json(v)| v).unwrap_or_default();
     // Sans emploi du temps disponible, le plan reste utile à partir des devoirs seuls.
     let cours = match s.ics.cours(&s.settings, &u.ade_url, false).await {
         Ok((tous, _)) => ade::cours_du_jour(tous, None, &q.filtres()).cours,

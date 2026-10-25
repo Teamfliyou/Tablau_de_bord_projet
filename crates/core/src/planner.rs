@@ -25,7 +25,9 @@ fn minutes_debut(heure: &str) -> u32 {
     let morceaux: Vec<_> = heure.split(':').collect();
     if morceaux.len() == 2 {
         if let (Ok(h), Ok(m)) = (morceaux[0].parse::<u32>(), morceaux[1].parse::<u32>()) {
-            if h < 24 && m < 60 { return h * 60 + m; }
+            if h < 24 && m < 60 {
+                return h * 60 + m;
+            }
         }
     }
     18 * 60
@@ -73,7 +75,11 @@ pub fn construire_prompt(cours: &[Cours], devoirs: &[Devoir]) -> String {
     construire_prompt_options(cours, devoirs, &OptionsPlan::default())
 }
 
-pub fn construire_prompt_options(cours: &[Cours], devoirs: &[Devoir], options: &OptionsPlan) -> String {
+pub fn construire_prompt_options(
+    cours: &[Cours],
+    devoirs: &[Devoir],
+    options: &OptionsPlan,
+) -> String {
     let cours_txt = if cours.is_empty() {
         "- Aucun cours aujourd'hui.".to_string()
     } else {
@@ -106,9 +112,17 @@ pub fn construire_prompt_options(cours: &[Cours], devoirs: &[Devoir], options: &
                     d.statut
                 ) + &format!(
                     " | priorité : {} | notes : {} | sous-tâches : {}",
-                    d.priorite, d.description,
-                    d.todos.iter().map(|t| format!("{} ({})", t.texte, if t.fait { "fait" } else { "à faire" }))
-                        .collect::<Vec<_>>().join("; ")
+                    d.priorite,
+                    d.description,
+                    d.todos
+                        .iter()
+                        .map(|t| format!(
+                            "{} ({})",
+                            t.texte,
+                            if t.fait { "fait" } else { "à faire" }
+                        ))
+                        .collect::<Vec<_>>()
+                        .join("; ")
                 )
             })
             .collect::<Vec<_>>()
@@ -133,7 +147,12 @@ Consignes :\n\
 pub fn simuler_plan(cours: &[Cours], devoirs: &[Devoir], avertissement: Option<String>) -> Plan {
     simuler_plan_options(cours, devoirs, avertissement, &OptionsPlan::default())
 }
-pub fn simuler_plan_options(cours: &[Cours], devoirs: &[Devoir], avertissement: Option<String>, options: &OptionsPlan) -> Plan {
+pub fn simuler_plan_options(
+    cours: &[Cours],
+    devoirs: &[Devoir],
+    avertissement: Option<String>,
+    options: &OptionsPlan,
+) -> Plan {
     let mut non_termines: Vec<&Devoir> = devoirs.iter().filter(|d| d.statut != "termine").collect();
     non_termines.sort_by_key(|d| {
         (
@@ -155,7 +174,12 @@ pub fn simuler_plan_options(cours: &[Cours], devoirs: &[Devoir], avertissement: 
         }
     }
     let depart = minutes_debut(&options.debut);
-    let heures: Vec<(String, String)> = (0..4).map(|i| { let m = depart + i * 55; (afficher_heure(m), afficher_heure(m + 45)) }).collect();
+    let heures: Vec<(String, String)> = (0..4)
+        .map(|i| {
+            let m = depart + i * 55;
+            (afficher_heure(m), afficher_heure(m + 45))
+        })
+        .collect();
     let mut planning: Vec<Creneau> = sujets
         .iter()
         .zip(heures.iter())
@@ -167,7 +191,11 @@ pub fn simuler_plan_options(cours: &[Cours], devoirs: &[Devoir], avertissement: 
         .collect();
     if planning.is_empty() {
         planning.push(Creneau {
-            heure: format!("{} - {}", afficher_heure(depart), afficher_heure(depart + 45)),
+            heure: format!(
+                "{} - {}",
+                afficher_heure(depart),
+                afficher_heure(depart + 45)
+            ),
             matiere: "Revue de la journée".into(),
             action: "Relire tes notes de cours et anticiper la prochaine séance".into(),
         });
@@ -301,13 +329,24 @@ pub async fn generer_plan(
 }
 
 pub async fn generer_plan_options(
-    base: &str, cle: Option<&str>, modele: &str, cours: &[Cours],
-    devoirs: &[Devoir], options: &OptionsPlan,
+    base: &str,
+    cle: Option<&str>,
+    modele: &str,
+    cours: &[Cours],
+    devoirs: &[Devoir],
+    options: &OptionsPlan,
 ) -> Plan {
     let Some(cle) = cle.map(str::trim).filter(|c| !c.is_empty()) else {
         return simuler_plan_options(cours, devoirs, None, options);
     };
-    match appeler_gemini(base, cle, modele, &construire_prompt_options(cours, devoirs, options)).await {
+    match appeler_gemini(
+        base,
+        cle,
+        modele,
+        &construire_prompt_options(cours, devoirs, options),
+    )
+    .await
+    {
         Ok(plan) => plan,
         Err(e) => {
             log::warn!("Gemini indisponible, repli en simulation : {e}");
@@ -397,10 +436,17 @@ mod tests {
 
     #[test]
     fn horaire_personnalise_et_sous_taches_dans_prompt() {
-        let options = OptionsPlan { debut: "14:25".into(), consignes: "Pas de physique".into() };
+        let options = OptionsPlan {
+            debut: "14:25".into(),
+            consignes: "Pas de physique".into(),
+        };
         let mut d = devoir("Projet", "devoir", "a_faire", "2026-11-01");
         d.description = "Rapport".into();
-        d.todos = vec![tdb_shared::Todo { id: 7, texte: "Introduction".into(), fait: false }];
+        d.todos = vec![tdb_shared::Todo {
+            id: 7,
+            texte: "Introduction".into(),
+            fait: false,
+        }];
         let p = construire_prompt_options(&[], &[d.clone()], &options);
         assert!(p.contains("14:25") && p.contains("Pas de physique"));
         assert!(p.contains("Introduction") && p.contains("Rapport"));

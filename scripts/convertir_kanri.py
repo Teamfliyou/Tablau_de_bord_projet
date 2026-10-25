@@ -19,7 +19,7 @@ STATUTS = {
 }
 
 def nettoyer_html(texte):
-    texte = re.sub(r"(?i)<\\s*br\\s*/?>|</\\s*p\\s*>|</\\s*li\\s*>", "\n", texte or "")
+    texte = re.sub(r"(?i)<\s*br\s*/?>|</\s*p\s*>|</\s*li\s*>", "\n", texte or "")
     return unescape(re.sub(r"<[^>]*>", "", texte)).strip()[:2000]
 
 def convertir(data):

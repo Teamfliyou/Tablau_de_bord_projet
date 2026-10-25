@@ -188,8 +188,12 @@ async fn migrer_ancienne_base(
 }
 
 #[tauri::command]
-async fn generer_plan(s: Etat<'_>, filtres: Option<Filtres>) -> Resultat<Plan> {
-    s.generer_plan(&filtres.unwrap_or_default()).await
+async fn generer_plan(s: Etat<'_>, filtres: Option<Filtres>, debut: Option<String>, consignes: Option<String>) -> Resultat<Plan> {
+    let options = tdb_core::planner::OptionsPlan {
+        debut: debut.unwrap_or_default(),
+        consignes: consignes.unwrap_or_default(),
+    };
+    s.generer_plan_options(&filtres.unwrap_or_default(), &options).await
 }
 
 #[tauri::command]

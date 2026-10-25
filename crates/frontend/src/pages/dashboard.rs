@@ -16,6 +16,12 @@ pub fn Dashboard() -> impl IntoView {
     let date_jour = util::date_longue(&js_sys::Date::new_0());
     let nouveau = RwSignal::new(String::new());
     let plan_copie = RwSignal::new(false);
+    let mode_personnalise = RwSignal::new(false);
+    let consignes_plan = RwSignal::new(String::new());
+    let heure_depart = RwSignal::new({
+        let maintenant = js_sys::Date::new_0();
+        format!("{:02}:{:02}", maintenant.get_hours(), maintenant.get_minutes())
+    });
 
     let nb_statut =
         move |s: &'static str| etat.devoirs.get().iter().filter(|d| d.statut == s).count();
@@ -287,7 +293,10 @@ pub fn Dashboard() -> impl IntoView {
                         <button
                             class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 disabled:opacity-60 text-white text-sm font-semibold shadow-lg shadow-indigo-500/40 transition"
                             prop:disabled=move || etat.chargement_plan.get()
-                            on:click=move |_| etat.generer_plan()
+                            on:click=move |_| etat.generer_plan(
+                                heure_depart.get_untracked(),
+                                if mode_personnalise.get_untracked() { consignes_plan.get_untracked() } else { String::new() },
+                            )
                         >
                             {move || if etat.chargement_plan.get() {
                                 view! { <Spinner class="w-4 h-4" /> }.into_any()
@@ -304,6 +313,28 @@ pub fn Dashboard() -> impl IntoView {
                         </button>
                     </div>
 
+                    <div class="mt-5 flex items-center gap-4 flex-wrap text-sm text-white">
+                        <label class="flex items-center gap-2">
+                            "Commencer à"
+                            <input type="time" class="rounded-lg bg-white/10 border border-white/20 p-2 text-white"
+                                prop:value=move || heure_depart.get()
+                                on:input=move |ev| heure_depart.set(event_target_value(&ev)) />
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox"
+                                prop:checked=move || mode_personnalise.get()
+                                on:change=move |ev| mode_personnalise.set(event_target_checked(&ev)) />
+                            "Plan personnalisé"
+                        </label>
+                    </div>
+                    {move || mode_personnalise.get().then(|| view! {
+                        <textarea class="mt-4 w-full rounded-xl bg-white/10 border border-white/20 p-3 text-white"
+                            rows="3" maxlength="2000"
+                            placeholder="Ce que je veux faire, ce que je ne veux pas faire, mes contraintes…"
+                            prop:value=move || consignes_plan.get()
+                            on:input=move |ev| consignes_plan.set(event_target_value(&ev))></textarea>
+                    })}
+                    <p class="mt-2 text-xs text-indigo-200">"L'IA consulte également les sous-tâches, descriptions et priorités, sans modifier les devoirs."</p>
                     {move || {
                         if etat.chargement_plan.get() {
                             return view! {

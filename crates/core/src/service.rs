@@ -244,10 +244,15 @@ impl Service {
     // ------------------------------------------------------------------- Plan IA
 
     pub async fn generer_plan(&self, f: &Filtres) -> Resultat<Plan> {
-        self.generer_plan_options(f, &planner::OptionsPlan::default()).await
+        self.generer_plan_options(f, &planner::OptionsPlan::default())
+            .await
     }
 
-    pub async fn generer_plan_options(&self, f: &Filtres, options: &planner::OptionsPlan) -> Resultat<Plan> {
+    pub async fn generer_plan_options(
+        &self,
+        f: &Filtres,
+        options: &planner::OptionsPlan,
+    ) -> Resultat<Plan> {
         // Sans emploi du temps disponible, le plan reste utile à partir des devoirs seuls.
         let cours = match self.charger_cours(false).await {
             Ok((tous, _)) => ade::cours_du_jour(tous, None, f).cours,
@@ -262,10 +267,15 @@ impl Service {
             .db
             .lire_parametre("gemini_model")?
             .unwrap_or_else(|| planner::MODELE_PAR_DEFAUT.to_string());
-        Ok(
-            planner::generer_plan_options(&self.gemini_base, cle.as_deref(), &modele, &cours, &devoirs, options)
-                .await,
+        Ok(planner::generer_plan_options(
+            &self.gemini_base,
+            cle.as_deref(),
+            &modele,
+            &cours,
+            &devoirs,
+            options,
         )
+        .await)
     }
 
     // ----------------------------------------------------------------- Migration

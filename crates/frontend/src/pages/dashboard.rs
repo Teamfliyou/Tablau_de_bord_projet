@@ -20,7 +20,11 @@ pub fn Dashboard() -> impl IntoView {
     let consignes_plan = RwSignal::new(String::new());
     let heure_depart = RwSignal::new({
         let maintenant = js_sys::Date::new_0();
-        format!("{:02}:{:02}", maintenant.get_hours(), maintenant.get_minutes())
+        format!(
+            "{:02}:{:02}",
+            maintenant.get_hours(),
+            maintenant.get_minutes()
+        )
     });
 
     let nb_statut =

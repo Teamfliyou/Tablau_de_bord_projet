@@ -341,14 +341,14 @@ pub async fn definir_todos_devoir(id: i64, todos: &[TodoEntree]) -> Res<Devoir> 
     }
 }
 
-pub async fn generer_plan(f: &Filtres) -> Res<Plan> {
+pub async fn generer_plan(f: &Filtres, debut: &str, consignes: &str) -> Res<Plan> {
     match mode() {
-        Mode::Tauri => invoquer("generer_plan", json!({ "filtres": f })).await,
+        Mode::Tauri => invoquer("generer_plan", json!({ "filtres": f, "debut": debut, "consignes": consignes })).await,
         Mode::Web => {
             http(
                 "POST",
                 &format!("/api/plan-revision{}", requete(None, f)),
-                None,
+                Some(json!({ "debut": debut, "consignes": consignes })),
             )
             .await
         }

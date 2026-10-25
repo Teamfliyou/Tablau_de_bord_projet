@@ -396,6 +396,19 @@ mod tests {
     }
 
     #[test]
+    fn horaire_personnalise_et_sous_taches_dans_prompt() {
+        let options = OptionsPlan { debut: "14:25".into(), consignes: "Pas de physique".into() };
+        let mut d = devoir("Projet", "devoir", "a_faire", "2026-11-01");
+        d.description = "Rapport".into();
+        d.todos = vec![tdb_shared::Todo { id: 7, texte: "Introduction".into(), fait: false }];
+        let p = construire_prompt_options(&[], &[d.clone()], &options);
+        assert!(p.contains("14:25") && p.contains("Pas de physique"));
+        assert!(p.contains("Introduction") && p.contains("Rapport"));
+        let simulation = simuler_plan_options(&[], &[d], None, &options);
+        assert!(simulation.planning[0].heure.starts_with("14:25"));
+    }
+
+    #[test]
     fn modele_valide() {
         assert!(valider_modele("gemini-2.5-flash").is_ok());
         assert!(valider_modele("../../etc").is_err());

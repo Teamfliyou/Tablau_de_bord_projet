@@ -555,11 +555,11 @@ impl Etat {
 
     // ------------------------------------------------------------------ Plan IA
 
-    pub fn generer_plan(self) {
+    pub fn generer_plan(self, debut: String, consignes: String) {
         spawn_local(async move {
             self.chargement_plan.set(true);
             self.erreur_plan.set(None);
-            match api::generer_plan(&self.filtres()).await {
+            match api::generer_plan(&self.filtres(), &debut, &consignes).await {
                 Ok(p) => self.plan.set(Some(p)),
                 Err(e) => {
                     let m = self.message(e);

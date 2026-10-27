@@ -87,6 +87,24 @@ pub fn Configuration() -> impl IntoView {
             });
         };
 
+    let google_statut = RwSignal::new("Vérification…".to_string());
+    let google_message = RwSignal::new(String::new());
+    let google_busy = RwSignal::new(false);
+    if !web { spawn_local(async move { if let Ok(s) = api::statut_google_agenda().await { google_statut.set(s); } }); }
+    let google_action = move |action: u8| {
+        spawn_local(async move {
+            google_busy.set(true);
+            let result = match action {
+                0 => api::importer_client_google().await,
+                1 => api::connecter_google_agenda().await,
+                _ => api::synchroniser_google_agenda().await,
+            };
+            google_message.set(match result { Ok(m) => m, Err(e) => e.message });
+            if let Ok(s) = api::statut_google_agenda().await { google_statut.set(s); }
+            google_busy.set(false);
+        });
+    };
+
     // Filtres et personnalisation.
     let analyse_en_cours = RwSignal::new(false);
     let analyse_erreur = RwSignal::new(String::new());
@@ -198,6 +216,21 @@ pub fn Configuration() -> impl IntoView {
                     </select>
                 </div>
             </section>
+
+            {(!web).then(|| view! {
+                <section class=format!("mt-8 {CARTE} p-6 space-y-4")>
+                    <h3 class="font-semibold text-slate-900">"📅 Google Agenda"</h3>
+                    <p class="text-sm text-slate-500">"Importe ton client_secret Google (OAuth Application de bureau), puis autorise l'accès dans ton navigateur. Les secrets restent dans le coffre Windows."</p>
+                    <p class="text-sm font-medium text-slate-700">{move || google_statut.get()}</p>
+                    <div class="flex flex-wrap gap-3">
+                        <button type="button" class=BOUTON_LARGE prop:disabled=move || google_busy.get() on:click=move |_| google_action(0)>"Choisir le fichier JSON"</button>
+                        <button type="button" class=BOUTON_LARGE prop:disabled=move || google_busy.get() on:click=move |_| google_action(1)>"Connecter Google"</button>
+                        <button type="button" class=BOUTON_LARGE prop:disabled=move || google_busy.get() on:click=move |_| google_action(2)>"Synchroniser mes devoirs"</button>
+                    </div>
+                    <p class="text-xs text-slate-500">"Les devoirs avec une échéance sont ajoutés en événements journée entière à ton agenda principal. La synchronisation s'effectue sur demande dans cette première version."</p>
+                    <p class="text-sm text-indigo-700">{move || google_message.get()}</p>
+                </section>
+            })}
 
             // ---- Données locales (application Windows uniquement)
             {(!web).then(|| view! {

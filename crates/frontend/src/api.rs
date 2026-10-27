@@ -522,3 +522,9 @@ pub async fn lire_fichier(fichier: web_sys::File) -> Res<String> {
         .as_string()
         .ok_or_else(|| ErreurApi::nouvelle("Le fichier n'est pas un texte UTF-8 valide."))
 }
+
+// Google Agenda : uniquement disponible dans la version Tauri.
+pub async fn statut_google_agenda() -> Res<String> { invoquer("statut_google_agenda", json!({})).await }
+pub async fn importer_client_google() -> Res<String> { invoquer("importer_client_google", json!({})).await }
+pub async fn connecter_google_agenda() -> Res<String> { invoquer("connecter_google_agenda", json!({})).await }
+pub async fn synchroniser_google_agenda() -> Res<String> { invoquer("synchroniser_google_agenda", json!({})).await }

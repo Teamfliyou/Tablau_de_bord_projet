@@ -2,6 +2,7 @@
 //! Aucun serveur HTTP local n'est démarré.
 
 mod coffre;
+mod google_agenda;
 mod maj;
 
 use std::path::PathBuf;
@@ -279,6 +280,10 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             maj::verifier_mise_a_jour,
             maj::installer_mise_a_jour,
             maj::progression_mise_a_jour,
+            google_agenda::statut_google_agenda,
+            google_agenda::importer_client_google,
+            google_agenda::connecter_google_agenda,
+            google_agenda::synchroniser_google_agenda,
         ])
         .run(tauri::generate_context!())?;
     Ok(())

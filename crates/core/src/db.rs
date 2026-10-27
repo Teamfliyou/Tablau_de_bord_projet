@@ -104,6 +104,49 @@ impl Db {
         Ok(db)
     }
 
+    /// Ouvre une base déjà créée par l'application, sans jamais la créer, la migrer ni la restaurer :
+    /// utilisé par le serveur MCP, processus distinct de l'application. Les migrations restent
+    /// l'affaire de l'application (avec sauvegarde préalable). `ecriture = false` : lecture seule.
+    pub fn ouvrir_existante(chemin: &Path, ecriture: bool) -> Resultat<Db> {
+        if !chemin.is_file() {
+            return Err(Erreur::Introuvable(format!(
+                "Base de données introuvable ({}) : lance l'application Tableau de bord une première fois.",
+                chemin.display()
+            )));
+        }
+        let acces = if ecriture {
+            OpenFlags::SQLITE_OPEN_READ_WRITE
+        } else {
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+        };
+        let conn = Connection::open_with_flags(chemin, acces | OpenFlags::SQLITE_OPEN_NO_MUTEX)?;
+        // Le mode WAL est persistant dans le fichier (choisi par l'application) : il n'est pas modifié ici.
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        let db = Db {
+            conn: Mutex::new(conn),
+            chemin: Some(chemin.to_path_buf()),
+        };
+        let version = db.version()?;
+        let attendue = Self::version_schema();
+        if version < attendue {
+            return Err(Erreur::Interne(
+                "La base n'est pas encore à jour : ouvre l'application Tableau de bord une fois pour terminer sa mise à jour.".into(),
+            ));
+        }
+        if version > attendue {
+            return Err(Erreur::Interne(
+                "La base provient d'une version plus récente de l'application : mets à jour l'application (le serveur MCP est installé avec elle).".into(),
+            ));
+        }
+        Ok(db)
+    }
+
+    /// Version du schéma gérée par ce binaire.
+    pub fn version_schema() -> i64 {
+        MIGRATIONS.len() as i64
+    }
+
     fn base_saine(chemin: &Path) -> bool {
         let Ok(conn) = Connection::open_with_flags(chemin, OpenFlags::SQLITE_OPEN_READ_ONLY) else {
             return false;
@@ -264,6 +307,28 @@ impl Db {
         d.tags = tags_du_devoir(&conn, id)?;
         d.todos = todos_du_devoir(&conn, id)?;
         Ok(d)
+    }
+
+    /// Renomme une matière sur tous ses devoirs (transaction unique). Renvoie le nombre de devoirs modifiés.
+    pub fn renommer_matiere(&self, ancienne: &str, nouvelle: &str) -> Resultat<usize> {
+        let nouvelle = nouvelle.trim();
+        valider_matiere(nouvelle)?;
+        if nouvelle.is_empty() {
+            return validation("Le nouveau nom de la matière ne peut pas être vide.");
+        }
+        let mut conn = self.verrou()?;
+        let tx = conn.transaction()?;
+        let n = tx.execute(
+            "UPDATE devoirs SET matiere = ?2 WHERE matiere = ?1",
+            params![ancienne, nouvelle],
+        )?;
+        if n == 0 {
+            return Err(Erreur::Introuvable(
+                "Aucun devoir dans cette matière.".into(),
+            ));
+        }
+        tx.commit()?;
+        Ok(n)
     }
 
     pub fn supprimer_devoir(&self, id: i64) -> Resultat<()> {
@@ -804,6 +869,69 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn ouverture_existante_sans_creation_ni_migration() {
+        let dossier = dossier_temp("existante");
+        let chemin = dossier.join("tableau-de-bord.db");
+        assert!(matches!(
+            Db::ouvrir_existante(&chemin, false),
+            Err(Erreur::Introuvable(_))
+        ));
+        assert!(!chemin.exists(), "la base ne doit jamais être créée");
+
+        let app = Db::ouvrir(&chemin).unwrap();
+        app.creer_devoir(entree("Partagé")).unwrap();
+
+        // Lecture seule : voit les données de l'application, refuse toute écriture.
+        let lecture = Db::ouvrir_existante(&chemin, false).unwrap();
+        assert_eq!(lecture.lister_devoirs().unwrap().len(), 1);
+        assert!(lecture.creer_devoir(entree("Interdit")).is_err());
+
+        // Écriture depuis un second processus : visible immédiatement par l'application.
+        let ecriture = Db::ouvrir_existante(&chemin, true).unwrap();
+        ecriture.creer_devoir(entree("Depuis MCP")).unwrap();
+        assert_eq!(app.lister_devoirs().unwrap().len(), 2);
+        drop((lecture, ecriture, app));
+
+        // Schéma ancien : le serveur MCP refuse plutôt que de migrer lui-même.
+        let ancienne = dossier.join("ancienne.db");
+        Connection::open(&ancienne)
+            .unwrap()
+            .execute_batch(&format!("{} PRAGMA user_version = 1;", MIGRATIONS[0]))
+            .unwrap();
+        assert!(Db::ouvrir_existante(&ancienne, false).is_err());
+        let conn = Connection::open(&ancienne).unwrap();
+        let v: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, 1, "aucune migration appliquée par le serveur MCP");
+        drop(conn);
+        fs::remove_dir_all(&dossier).unwrap();
+    }
+
+    #[test]
+    fn renommer_une_matiere() {
+        let db = Db::en_memoire().unwrap();
+        db.creer_devoir(entree("A")).unwrap();
+        db.creer_devoir(entree("B")).unwrap();
+        let mut autre = entree("C");
+        autre.matiere = "PHYSIQUE".into();
+        db.creer_devoir(autre).unwrap();
+        assert_eq!(db.renommer_matiere("MATHS", "  Mathématiques ").unwrap(), 2);
+        let matieres: Vec<String> = db
+            .lister_devoirs()
+            .unwrap()
+            .into_iter()
+            .map(|d| d.matiere)
+            .collect();
+        assert_eq!(matieres, ["Mathématiques", "Mathématiques", "PHYSIQUE"]);
+        assert!(matches!(
+            db.renommer_matiere("INCONNUE", "X"),
+            Err(Erreur::Introuvable(_))
+        ));
+        assert!(db.renommer_matiere("PHYSIQUE", "  ").is_err());
     }
 
     #[test]

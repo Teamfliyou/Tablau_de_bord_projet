@@ -8,8 +8,8 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use tdb_shared::{
     Categories, Config, ConfigUpdate, Connexion, CoursDuJourEtat, CoursSemaineEtat, Devoir,
-    DevoirEntree, DevoirModification, Filtres, InfoMiseAJour, Inscription, Plan,
-    ProgressionMiseAJour, RapportMigration, ReponseAuth, Tag, TagEntree, TodoEntree,
+    DevoirEntree, DevoirModification, EtatMcp, Filtres, Inscription, Plan, ProgressionMiseAJour,
+    RapportMigration, ReponseAuth, Tag, TagEntree, TestMcp, TodoEntree, VerificationMiseAJour,
 };
 use wasm_bindgen::prelude::*;
 
@@ -376,10 +376,10 @@ pub async fn version() -> Option<String> {
 // ------------------------------------------------ Mise à jour (Windows)
 
 /// Recherche une version plus récente. La version Web n'a pas de mise à jour côté client.
-pub async fn verifier_mise_a_jour() -> Res<Option<InfoMiseAJour>> {
+pub async fn verifier_mise_a_jour() -> Res<VerificationMiseAJour> {
     match mode() {
         Mode::Tauri => invoquer("verifier_mise_a_jour", json!({})).await,
-        Mode::Web => Ok(None),
+        Mode::Web => Ok(VerificationMiseAJour::default()),
     }
 }
 
@@ -390,6 +390,25 @@ pub async fn installer_mise_a_jour() -> Res<()> {
 
 pub async fn progression_mise_a_jour() -> Res<ProgressionMiseAJour> {
     invoquer("progression_mise_a_jour", json!({})).await
+}
+
+// ------------------------------------------ Intégration Hermes Agent / MCP (Windows)
+
+pub async fn etat_mcp() -> Res<EtatMcp> {
+    invoquer("etat_mcp", json!({})).await
+}
+
+pub async fn definir_mcp(actif: bool, ecriture: bool) -> Res<EtatMcp> {
+    invoquer(
+        "definir_mcp",
+        json!({ "actif": actif, "ecriture": ecriture }),
+    )
+    .await
+}
+
+/// Lance réellement le serveur MCP et l'interroge, comme le fera Hermes Agent.
+pub async fn tester_mcp() -> Res<TestMcp> {
+    invoquer("tester_mcp", json!({})).await
 }
 
 // -------------------------------------------------- Fichiers (export / import)

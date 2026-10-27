@@ -1,7 +1,9 @@
-//! Onglet Configuration : ADE, Gemini, apparence, données locales, filtres et personnalisation.
+//! Onglet Configuration : ADE, Gemini, apparence, données locales, mises à jour,
+//! intégrations IA (Hermes Agent / MCP), filtres et personnalisation.
 
 use crate::api::{self, Mode};
 use crate::icons::{Icone, Spinner};
+use crate::pages::integrations::{SectionHermes, SectionMisesAJour};
 use crate::state::{Dimension, Etat, StyleNav, Theme, MODELES_SUGGERES};
 use crate::ui::*;
 use leptos::prelude::*;
@@ -211,24 +213,11 @@ pub fn Configuration() -> impl IntoView {
                         </button>
                         {move || { let v = etat.version.get(); (!v.is_empty()).then(|| view! { <span class="text-xs text-slate-400">{format!("Version {v}")}</span> }) }}
                     </div>
-                    <div class="mt-4 flex flex-wrap items-center gap-3">
-                        <button type="button" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/70 border border-white/50 text-sm font-semibold text-slate-700 hover:border-indigo-300 disabled:opacity-60 transition"
-                            prop:disabled=move || etat.maj_verification.get()
-                            on:click=move |_| { spawn_local(async move { etat.verifier_maj(true).await; }); }>
-                            {move || if etat.maj_verification.get() { view! { <Spinner class="w-4 h-4" /> }.into_any() } else { view! { <Icone nom="refresh" class="w-4 h-4" /> }.into_any() }}
-                            {move || if etat.maj_verification.get() { "Recherche en cours…" } else { "Rechercher les mises à jour" }}
-                        </button>
-                        {move || etat.maj_info.get().map(|i| view! {
-                            <button type="button" class="text-sm font-medium text-indigo-600 hover:text-indigo-500 transition" on:click=move |_| etat.maj_fenetre.set(true)>
-                                {format!("Version {} disponible", i.version)}
-                            </button>
-                        })}
-                    </div>
-                    {move || { let m = etat.maj_message.get(); (!m.is_empty()).then(|| view! { <p class=format!("mt-4 {ALERTE_OK}")>{m}</p> }) }}
-                    {move || { let e = etat.maj_erreur.get(); (!e.is_empty()).then(|| view! { <p class=format!("mt-4 {ALERTE_ERREUR}")>{e}</p> }) }}
                     {move || { let m = migration_message.get(); (!m.is_empty()).then(|| view! { <p class=format!("mt-4 {ALERTE_OK}")>{m}</p> }) }}
                     {move || { let e = migration_erreur.get(); (!e.is_empty()).then(|| view! { <p class="mt-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-sm p-3.5">{e}</p> }) }}
                 </section>
+                <SectionMisesAJour />
+                <SectionHermes />
             })}
 
             // ---- Compte (version Web)

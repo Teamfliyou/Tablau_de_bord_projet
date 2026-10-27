@@ -103,20 +103,25 @@ Prérequis : Rust stable (cible MSVC) avec *Build Tools for Visual Studio*, la c
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo install trunk tauri-cli --locked
-cargo tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+./scripts/preparer-serveur-mcp.ps1
+cargo tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false,"externalBin":["binaries/tdb-mcp"]}}'
 ```
 
-Sorties : `target/release/TableauDeBordEtudiant.exe` et `target/release/bundle/nsis/*-setup.exe`. (Le paramètre `--config` désactive les fichiers de mise à jour signés, réservés à la CI qui détient la clé privée.)
+Sorties : `target/release/TableauDeBordEtudiant.exe`, `target/release/tdb-mcp.exe` et `target/release/bundle/nsis/*-setup.exe`. (Le paramètre `--config` désactive les fichiers de mise à jour signés, réservés à la CI qui détient la clé privée.)
 
 Le workflow GitHub Actions peut aussi être lancé manuellement (*Actions → Build Windows (Tauri) → Run workflow*). Une Release n'est publiée que pour un tag stable `vX.Y.Z` :
 
 ```bash
-git tag v4.2.0 && git push origin v4.2.0
+git tag v5.1.0 && git push origin v5.1.0
 ```
+
+### 🤖 Hermes Agent (MCP, depuis la 5.1.0)
+
+L'installateur fournit `tdb-mcp.exe`, un serveur MCP local (stdio, sans port réseau) qui permet à [Hermes Agent](https://github.com/NousResearch/hermes-agent) de consulter tes devoirs : tâches du jour, retards, échéances, avancement par matière. Il est désactivé et en lecture seule par défaut, et les modifications passent par une confirmation. À activer dans **Configuration → Intégrations IA**, qui fournit la configuration Hermes à copier et un test de connexion. Guide : [docs/HERMES_MCP.md](docs/HERMES_MCP.md).
 
 ### 🔄 Mise à jour automatique (depuis la 4.2.0)
 
-L'installation (NSIS) vérifie discrètement au lancement s'il existe une release stable plus récente sur GitHub, propose de la télécharger avec une barre de progression réelle, vérifie sa signature cryptographique puis l'installe sans toucher à vos données. Vous pouvez aussi la déclencher dans **Configuration → Données locales → Rechercher les mises à jour**. La 4.2.0 doit être installée une première fois manuellement ; les installations 4.1.0 et antérieures ne se mettent pas à jour seules. Préparation des clés et publication : voir [docs/APPLICATION_WINDOWS.md](docs/APPLICATION_WINDOWS.md#10-mise-à-jour-automatique).
+L'installation (NSIS) vérifie discrètement au lancement s'il existe une release stable plus récente sur GitHub, propose de la télécharger avec une barre de progression réelle, vérifie sa signature cryptographique puis l'installe sans toucher à vos données. Vous pouvez aussi la déclencher dans **Configuration → Mises à jour** (version installée, dernière version publiée et date). La 4.2.0 doit être installée une première fois manuellement ; les installations 4.1.0 et antérieures ne se mettent pas à jour seules. Préparation des clés et publication : voir [docs/APPLICATION_WINDOWS.md](docs/APPLICATION_WINDOWS.md#10-mise-à-jour-automatique).
 
 ## ✅ Tests et qualité
 

@@ -1,6 +1,6 @@
 [package]
 name = "tdb-server"
-version = "4.2.0"
+version = "5.1.0"
 edition = "2021"
 description = "Serveur Web (Axum) du Tableau de bord étudiant : API REST, authentification et frontend Leptos"
 license = "MIT"

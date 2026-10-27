@@ -1,6 +1,6 @@
 name: CI
 
-# Intégration continue de la version Web : backend Axum, frontend Leptos (WASM) et image Docker.
+# Intégration continue de la version Web (backend Axum, frontend Leptos WASM, image Docker) et du serveur MCP.
 # L'application Windows (Tauri) est compilée par le workflow « Build Windows (Tauri) ».
 
 on:
@@ -33,9 +33,9 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
-        run: cargo clippy -p tdb-shared -p tdb-core -p tdb-server --all-targets --locked -- -D warnings
+        run: cargo clippy -p tdb-shared -p tdb-core -p tdb-server -p tdb-mcp --all-targets --locked -- -D warnings
       - name: Tests
-        run: cargo test -p tdb-shared -p tdb-core -p tdb-server --locked
+        run: cargo test -p tdb-shared -p tdb-core -p tdb-server -p tdb-mcp --locked
 
   frontend:
     name: Frontend Leptos (WebAssembly)

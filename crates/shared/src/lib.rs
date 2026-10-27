@@ -406,6 +406,20 @@ pub struct InfoMiseAJour {
     pub notes: Option<String>,
     /// `false` pour l'exécutable portable : installation automatique refusée.
     pub installable: bool,
+    /// Date de publication annoncée par `latest.json` (RFC 3339).
+    #[serde(default)]
+    pub date: Option<String>,
+}
+
+/// Résultat d'une recherche de mise à jour : la dernière version publiée est connue même sans mise à jour.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct VerificationMiseAJour {
+    pub version_actuelle: String,
+    /// Dernière version publiée sur GitHub Releases (même si elle n'est pas plus récente).
+    pub derniere_version: Option<String>,
+    pub date: Option<String>,
+    /// Présente uniquement si la dernière version est strictement plus récente.
+    pub mise_a_jour: Option<InfoMiseAJour>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -423,6 +437,64 @@ pub struct ProgressionMiseAJour {
     pub phase: PhaseMiseAJour,
     pub telecharge: u64,
     pub total: Option<u64>,
+}
+
+// ------------------------------------------- Intégration MCP (Hermes Agent)
+
+/// Paramètres (table `parametres`) relus par le serveur MCP à chaque appel.
+pub const PARAM_MCP_ACTIF: &str = "mcp_actif";
+pub const PARAM_MCP_ECRITURE: &str = "mcp_ecriture";
+/// Nom de l'exécutable installé à côté de l'application.
+pub const EXECUTABLE_MCP: &str = "tdb-mcp";
+/// Nom conseillé du serveur dans la configuration de Hermes (outils `mcp_tableau_de_bord_*`).
+pub const NOM_SERVEUR_MCP: &str = "tableau_de_bord";
+
+/// Outil exposé par le serveur MCP. Dans ce tableau de bord, un « projet » est une matière.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq)]
+pub struct OutilMcp {
+    pub nom: &'static str,
+    pub description: &'static str,
+    /// Outil de modification : refusé tant que l'écriture n'est pas autorisée dans l'application.
+    pub ecriture: bool,
+}
+
+pub const OUTILS_MCP: &[OutilMcp] = &[
+    OutilMcp { nom: "list_projects", description: "Liste les projets (matières) avec leur avancement, leurs tâches en retard et leur prochaine échéance.", ecriture: false },
+    OutilMcp { nom: "get_project_details", description: "Détail d'un projet (matière) : statistiques et liste de ses tâches.", ecriture: false },
+    OutilMcp { nom: "list_tasks", description: "Liste les tâches (devoirs), triées par urgence, avec filtres facultatifs (projet, statut, priorité, recherche).", ecriture: false },
+    OutilMcp { nom: "get_task_details", description: "Détail complet d'une tâche : description, sous-tâches, tags.", ecriture: false },
+    OutilMcp { nom: "get_today_tasks", description: "Tâches non terminées dont l'échéance est aujourd'hui (heure de Paris).", ecriture: false },
+    OutilMcp { nom: "get_upcoming_tasks", description: "Tâches non terminées à échéance dans les prochains jours (7 par défaut).", ecriture: false },
+    OutilMcp { nom: "get_overdue_tasks", description: "Tâches non terminées dont l'échéance est dépassée.", ecriture: false },
+    OutilMcp { nom: "get_completed_tasks", description: "Tâches terminées, éventuellement filtrées par projet.", ecriture: false },
+    OutilMcp { nom: "get_project_progress", description: "Avancement global et par projet (tâches et sous-tâches terminées).", ecriture: false },
+    OutilMcp { nom: "create_project", description: "Crée un projet (matière) avec sa première tâche. Confirmation requise.", ecriture: true },
+    OutilMcp { nom: "update_project", description: "Renomme un projet (matière) sur toutes ses tâches. Confirmation requise.", ecriture: true },
+    OutilMcp { nom: "create_task", description: "Crée une tâche dans un projet. Confirmation requise.", ecriture: true },
+    OutilMcp { nom: "update_task", description: "Modifie une tâche (titre, projet, échéance, type, statut, priorité, description). Confirmation requise.", ecriture: true },
+    OutilMcp { nom: "complete_task", description: "Marque une tâche comme terminée. Confirmation requise.", ecriture: true },
+];
+
+/// État de l'intégration affiché dans Paramètres → Intégrations IA.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct EtatMcp {
+    pub actif: bool,
+    pub ecriture: bool,
+    /// Chemin de `tdb-mcp.exe` à côté de l'application, s'il est présent.
+    pub executable: Option<String>,
+    /// Chemin de la base partagée avec le serveur MCP.
+    pub base: String,
+    /// Bloc YAML à coller dans la configuration de Hermes Agent.
+    pub configuration: String,
+}
+
+/// Résultat du test de connexion (le serveur MCP est réellement lancé puis interrogé).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct TestMcp {
+    pub ok: bool,
+    pub message: String,
+    pub version: Option<String>,
+    pub outils: Vec<String>,
 }
 
 // ----------------------------------------------------------- Authentification

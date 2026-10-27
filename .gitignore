@@ -43,3 +43,6 @@ Thumbs.db
 logs/
 tmp/
 .claude/
+
+# Serveur MCP copié pour l'installateur (scripts/preparer-serveur-mcp.ps1)
+src-tauri/binaries/

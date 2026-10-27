@@ -93,10 +93,11 @@ crates/core/                Bibliothèque Rust `tdb-core` (sans dépendance à T
   ├─ service.rs             Orchestration, cache ICS (mémoire + SQLite), configuration
   └─ secrets.rs             Interface du stockage de secrets
 crates/server/              Serveur Web Axum (version Web, non utilisé par l'application Windows)
-src-tauri/src/              Application Tauri : commandes IPC, fenêtre, coffre Windows
+crates/mcp/                 Serveur MCP local `tdb-mcp.exe` pour Hermes Agent (stdio, même base SQLite) — voir docs/HERMES_MCP.md
+src-tauri/src/              Application Tauri : commandes IPC, fenêtre, coffre Windows, mise à jour, réglages MCP
 ```
 
-Le frontend communique avec Rust **uniquement par commandes Tauri** (`invoke`) : aucun serveur HTTP local n'est ouvert.
+Le frontend communique avec Rust **uniquement par commandes Tauri** (`invoke`) : aucun serveur HTTP local n'est ouvert. Le serveur MCP (`tdb-mcp.exe`, installé à côté de l'application) dialogue avec Hermes Agent sur l'entrée/sortie standard, sans port réseau.
 
 | Ancienne route FastAPI | Commande Tauri |
 |---|---|
@@ -109,6 +110,8 @@ Le frontend communique avec Rust **uniquement par commandes Tauri** (`invoke`) :
 | `POST /api/plan-revision` | `generer_plan` |
 | `/api/auth/*` | supprimé (application mono-utilisateur) |
 | — | `obtenir_preferences`, `enregistrer_preferences`, `migrer_ancienne_base`, `version_application` |
+| — | `verifier_mise_a_jour`, `installer_mise_a_jour`, `progression_mise_a_jour` (mise à jour) |
+| — | `etat_mcp`, `definir_mcp`, `tester_mcp` (Intégrations IA — Hermes Agent / MCP) |
 
 Bibliothèques : `tauri` 2, `rusqlite` (SQLite embarqué), `serde`, `tokio`, `reqwest` (TLS natif Windows), `ical` (parseur iCalendar), `chrono` + `chrono-tz`, `keyring` (Gestionnaire d'identifiants Windows).
 
@@ -130,16 +133,17 @@ rustup target add wasm32-unknown-unknown
 cargo install trunk tauri-cli --locked
 cargo tauri dev                        # mode développement (fenêtre native)
 cargo test --workspace                 # tests Rust
-cargo tauri build --bundles nsis       # exe + installateur
+./scripts/preparer-serveur-mcp.ps1    # compile tdb-mcp et le place dans src-tauri/binaries
+cargo tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false,"externalBin":["binaries/tdb-mcp"]}}'
 ```
 
-Sorties : `target/release/TableauDeBordEtudiant.exe` (portable) et `target/release/bundle/nsis/*-setup.exe`.
+Sorties : `target/release/TableauDeBordEtudiant.exe` (portable), `target/release/tdb-mcp.exe` et `target/release/bundle/nsis/*-setup.exe` (qui contient les deux). Le serveur MCP n'est déclaré (`externalBin`) qu'au moment de construire l'installateur : `cargo build`, `clippy` et `cargo test` n'en dépendent pas. `scripts/compiler-exe-windows.bat` fait tout cela en une fois.
 
 Le même frontend fonctionne dans un navigateur avec le serveur Axum (voir le `README.md`).
 
 ### Intégration continue
 
-`.github/workflows/build-windows.yml` (runner `windows-latest`) : build du frontend Leptos (`trunk build --release`) → `cargo fmt --check` → `clippy -D warnings` → `cargo test` → `tauri build` → **test de lancement du `.exe` portable** (fenêtre créée, base SQLite créée) → **test de l'installateur** (installation silencieuse, raccourcis, lancement, désinstallation, données conservées) → artifacts. Un tag stable `vX.Y.Z` signe en plus la mise à jour, génère `latest.json` et crée la GitHub Release (voir section 10).
+`.github/workflows/build-windows.yml` (runner `windows-latest`) : build du frontend Leptos (`trunk build --release`) → `cargo fmt --check` → `clippy -D warnings` → `cargo test` → compilation du serveur MCP → `tauri build` → **test de lancement du `.exe` portable** (fenêtre créée, base SQLite créée) et **dialogue MCP réel avec `tdb-mcp.exe`** (`scripts/tester-serveur-mcp.ps1`) → **test de l'installateur** (installation silencieuse, raccourcis, `tdb-mcp.exe` présent et fonctionnel après réinstallation par-dessus, lancement, désinstallation, données conservées) → artifacts. Un tag stable `vX.Y.Z` signe en plus la mise à jour, génère `latest.json` et crée la GitHub Release (voir section 10).
 
 ## 9. Limitations connues
 
@@ -155,9 +159,12 @@ Le même frontend fonctionne dans un navigateur avec le serveur Axum (voir le `R
 1. Quelques secondes après le lancement, l'application interroge en arrière-plan `https://github.com/Teamfliyou/Tablau_de_bord_projet/releases/latest/download/latest.json`. GitHub n'y expose que la **dernière release stable** : brouillons et préversions sont ignorés. Hors connexion, l'application continue normalement, sans message.
 2. Si une version **strictement supérieure** existe, une fenêtre « Mise à jour disponible » affiche version actuelle, nouvelle version et améliorations. Boutons : **Mettre à jour maintenant** / **Plus tard**.
 3. Le téléchargement affiche la progression réelle (octets reçus / taille annoncée). Tauri vérifie la **signature minisign** avec la clé publique intégrée ; si elle est invalide, rien n'est installé. L'installateur NSIS est alors lancé (mode passif) **par-dessus l'installation existante** (pas de seconde installation) et l'application redémarre.
-4. **Configuration → Données locales → Rechercher les mises à jour** déclenche une vérification manuelle (résultat ou erreur affichés). En cas d'échec, un bouton **Réessayer** est proposé.
+4. **Configuration → Mises à jour** affiche la version installée, la dernière version publiée et sa date de publication. **Rechercher des mises à jour** déclenche une vérification manuelle (résultat ou erreur affichés) ; un échec de la vérification automatique au démarrage y est également signalé. En cas d'échec d'installation, un bouton **Réessayer** est proposé.
+5. Le serveur MCP (`tdb-mcp.exe`) est inclus dans l'installateur et remplacé avec l'application ; les serveurs lancés par Hermes sont arrêtés juste avant l'installation pour que Windows ne verrouille pas le fichier.
 
 Les données (`%APPDATA%\fr.teamfliyou.tableaudebord` : base SQLite, devoirs, préférences, liens ADE, sauvegardes) ne sont jamais touchées ; la clé Gemini reste dans le Gestionnaire d'identifiants Windows. L'identifiant `fr.teamfliyou.tableaudebord` ne doit jamais changer.
+
+**Pourquoi une version n'arrive pas** : seule une **release publiée** est visible. Une version présente sur `main` mais sans tag (ce fut le cas de la 5.0.1), ou un tag dont le workflow a échoué (la 4.4.0), n'est jamais proposée. Vérifier dans *Releases* que la version y figure avec `latest.json`.
 
 **Limites** : la 4.1.0 et les versions antérieures n'ont pas ce mécanisme : la 4.2.0 s'installe une première fois à la main. Le `.exe` **portable** peut détecter une nouvelle version mais refuse de l'installer (l'installateur créerait une seconde installation et on ne remplace pas un exécutable en cours d'exécution) : il affiche un message invitant à télécharger le nouvel installateur.
 
@@ -177,12 +184,12 @@ Choisissez un mot de passe fort. La commande affiche la clé **publique** et éc
 
 ### Publier une nouvelle version
 
-1. Mettre à jour la version **partout** : `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` et les `Cargo.toml` des crates (puis `cargo check` pour régénérer `Cargo.lock`).
-2. Fusionner dans `main` quand la CI est verte, puis :
+1. Mettre à jour la version **partout** : `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` et les `Cargo.toml` des crates, dont `crates/mcp` (puis `cargo update -w --offline` pour régénérer `Cargo.lock`).
+2. Fusionner dans `main` quand la CI est verte, puis créer le tag **sur ce commit de `main`** (la publication n'a lieu qu'à ce moment-là : un simple push sur `main` ne publie rien) :
    ```bash
-   git tag v4.2.1 && git push origin v4.2.1
+   git tag v5.1.0 && git push origin v5.1.0
    ```
-3. Le workflow (tag stable `vX.Y.Z` uniquement) : vérifie tag/version/secrets → fmt, clippy, tests → compile frontend + NSIS signé → **vérifie la signature avec la clé publique intégrée** → génère et valide `latest.json` → teste lancement et installation (y compris réinstallation par-dessus) → crée la release en **brouillon**, téléverse tout, contrôle que chaque fichier est présent, **puis seulement** la publie. Toute signature, installateur ou fichier manquant fait échouer le workflow : `latest.json` n'est donc jamais visible avant ses artefacts.
+3. Le workflow (tag stable `vX.Y.Z` uniquement) : vérifie tag/version (application et serveur MCP)/secrets → fmt, clippy, tests → compile frontend + NSIS signé → **vérifie la signature avec la clé publique intégrée** → génère et valide `latest.json` → teste lancement et installation (y compris réinstallation par-dessus) → crée la release en **brouillon**, téléverse tout, contrôle que chaque fichier est présent, **puis seulement** la publie. Toute signature, installateur ou fichier manquant fait échouer le workflow : `latest.json` n'est donc jamais visible avant ses artefacts.
 
 ### Sécurité de la mise à jour
 

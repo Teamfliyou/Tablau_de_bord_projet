@@ -11,11 +11,14 @@ where cargo-tauri >nul 2>&1 || (echo La CLI Tauri est introuvable : lancez  carg
 
 rustup target add wasm32-unknown-unknown
 rustup default stable-x86_64-pc-windows-msvc
+rem Serveur MCP pour Hermes Agent : compile puis copie dans src-tauri\binaries pour l'installateur.
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\preparer-serveur-mcp.ps1 || (echo Echec de la compilation du serveur MCP. & pause & exit /b 1)
 rem Build local : pas de cle de signature des mises a jour (reservee a la CI), donc pas d'artefacts de mise a jour.
-cargo tauri build --bundles nsis --config "{\"bundle\":{\"createUpdaterArtifacts\":false}}" || (echo Echec de la compilation. & pause & exit /b 1)
+cargo tauri build --bundles nsis --config "{\"bundle\":{\"createUpdaterArtifacts\":false,\"externalBin\":[\"binaries/tdb-mcp\"]}}" || (echo Echec de la compilation. & pause & exit /b 1)
 
 echo.
 echo Termine :
 echo   target\release\TableauDeBordEtudiant.exe
+echo   target\release\tdb-mcp.exe  (serveur MCP, integre a l'installateur)
 echo   target\release\bundle\nsis\
 pause

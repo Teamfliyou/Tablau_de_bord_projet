@@ -1,6 +1,6 @@
 name: Build Windows (Tauri)
 
-# Compile l'application de bureau Windows : .exe portable + installateur NSIS.
+# Compile l'application de bureau Windows : .exe portable + installateur NSIS, avec le serveur MCP (tdb-mcp.exe).
 # - déclenchement manuel (Actions → Run workflow), push sur main, pull request : tests, compilation, artifacts
 # - tag stable vX.Y.Z : signe la mise à jour, génère latest.json et publie une GitHub Release (jamais à chaque simple commit)
 #   Secrets requis pour une release : TAURI_SIGNING_PRIVATE_KEY et TAURI_SIGNING_PRIVATE_KEY_PASSWORD
@@ -63,6 +63,8 @@ jobs:
           if ("${{ github.ref_name }}" -ne "v$version") { throw "Le tag ${{ github.ref_name }} ne correspond pas à la version $version" }
           $cargo = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
           if ($cargo -ne $version) { throw "Cargo.toml ($cargo) et tauri.conf.json ($version) ne sont pas synchronisés" }
+          $mcp = (Select-String -Path crates/mcp/Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          if ($mcp -ne $version) { throw "Serveur MCP ($mcp) et application ($version) ne sont pas synchronisés" }
           if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw "Secret TAURI_SIGNING_PRIVATE_KEY absent : impossible de signer la mise à jour (voir docs/APPLICATION_WINDOWS.md)" }
           if (-not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) { throw "Secret TAURI_SIGNING_PRIVATE_KEY_PASSWORD absent" }
 
@@ -82,13 +84,18 @@ jobs:
       - name: Tests Rust
         run: cargo test --workspace --locked
 
+      - name: Compiler le serveur MCP et le préparer pour l'installateur
+        shell: pwsh
+        run: ./scripts/preparer-serveur-mcp.ps1
+
+      # Le serveur MCP n'est déclaré (externalBin) qu'ici : les autres commandes cargo n'en dépendent pas.
       - name: Compiler l'application et l'installateur NSIS (sans fichiers de mise à jour)
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: cargo tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+        run: cargo tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false,"externalBin":["binaries/tdb-mcp"]}}'
 
       - name: Compiler l'application, l'installateur NSIS et la signature de mise à jour
         if: startsWith(github.ref, 'refs/tags/v')
-        run: cargo tauri build --bundles nsis
+        run: cargo tauri build --bundles nsis --config '{"bundle":{"externalBin":["binaries/tdb-mcp"]}}'
 
       - name: Rassembler les exécutables
         shell: pwsh
@@ -96,6 +103,8 @@ jobs:
           $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item target/release/TableauDeBordEtudiant.exe release/TableauDeBordEtudiant.exe
+          # Serveur MCP seul, pour la version portable (l'installateur l'intègre déjà).
+          Copy-Item target/release/tdb-mcp.exe release/tdb-mcp.exe
           $setup = Get-ChildItem target/release/bundle/nsis -Filter *.exe | Select-Object -First 1
           if (-not $setup) { throw "Installateur NSIS introuvable" }
           Copy-Item $setup.FullName "release/TableauDeBordEtudiant-Setup-$version.exe"
@@ -141,6 +150,8 @@ jobs:
           $db = Join-Path $env:APPDATA "$env:APP_DATA_ID/tableau-de-bord.db"
           if (-not (Test-Path $db)) { throw "Base SQLite non créée dans $db" }
           Write-Host "Base SQLite créée : $db"
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          ./scripts/tester-serveur-mcp.ps1 -Executable (Resolve-Path release/tdb-mcp.exe).Path -Base $db -Version $version
           try {
             Add-Type -AssemblyName System.Windows.Forms, System.Drawing
             $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
@@ -158,6 +169,9 @@ jobs:
           $installe = Get-ChildItem $env:LOCALAPPDATA -Recurse -Filter TableauDeBordEtudiant.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $installe) { throw "Application non installée" }
           Write-Host "Installée dans : $($installe.DirectoryName)"
+          $mcpInstalle = Join-Path $installe.DirectoryName "tdb-mcp.exe"
+          if (-not (Test-Path $mcpInstalle)) { throw "Serveur MCP absent de l'installation : $mcpInstalle" }
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
           $lnk = @(
             Get-ChildItem ([Environment]::GetFolderPath('Desktop')) -Filter *.lnk -ErrorAction SilentlyContinue
             Get-ChildItem "$env:APPDATA/Microsoft/Windows/Start Menu/Programs" -Recurse -Filter *.lnk -ErrorAction SilentlyContinue
@@ -173,6 +187,8 @@ jobs:
           if ($copies.Count -ne 1) { throw "Installation par-dessus : $($copies.Count) copies de l'application (1 attendue)" }
           if (-not (Test-Path $dbChemin)) { throw "Base SQLite perdue après la réinstallation" }
           Write-Host "Réinstallation par-dessus : une seule installation, données conservées."
+          # Le serveur MCP installé fonctionne toujours après la réinstallation (même mécanisme que la mise à jour).
+          ./scripts/tester-serveur-mcp.ps1 -Executable $mcpInstalle -Base $dbChemin -Version $version
           $p = Start-Process $installe.FullName -PassThru
           Start-Sleep -Seconds 12
           if ($p.HasExited) { throw "L'application installée s'est arrêtée (code $($p.ExitCode))" }
@@ -182,6 +198,7 @@ jobs:
           Start-Process $uninstall -ArgumentList "/S" -Wait
           Start-Sleep -Seconds 3
           if (Test-Path $installe.FullName) { throw "Désinstallation incomplète" }
+          if (Test-Path $mcpInstalle) { throw "Serveur MCP non supprimé à la désinstallation" }
           if (-not (Test-Path $dbChemin)) { throw "Les données utilisateur ont été supprimées à la désinstallation" }
           Write-Host "Désinstallation propre, données utilisateur conservées."
 
@@ -191,6 +208,7 @@ jobs:
           name: TableauDeBordEtudiant-windows
           path: |
             release/TableauDeBordEtudiant.exe
+            release/tdb-mcp.exe
             release/TableauDeBordEtudiant-Setup-*.exe
             release/TableauDeBordEtudiant-Setup-*.exe.sig
             release/latest.json
@@ -223,7 +241,7 @@ jobs:
       - name: Vérifier que tous les fichiers indispensables sont présents et cohérents
         run: |
           version="${GITHUB_REF_NAME#v}"
-          for f in "TableauDeBordEtudiant.exe" "TableauDeBordEtudiant-Setup-$version.exe" "TableauDeBordEtudiant-Setup-$version.exe.sig" "latest.json" "SHA256SUMS.txt"; do
+          for f in "TableauDeBordEtudiant.exe" "tdb-mcp.exe" "TableauDeBordEtudiant-Setup-$version.exe" "TableauDeBordEtudiant-Setup-$version.exe.sig" "latest.json" "SHA256SUMS.txt"; do
             [ -s "release/$f" ] || { echo "::error::Fichier indispensable absent ou vide : $f"; exit 1; }
           done
           url="https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/TableauDeBordEtudiant-Setup-$version.exe"
@@ -244,7 +262,7 @@ jobs:
             --title "Tableau de bord étudiant $GITHUB_REF_NAME" \
             --generate-notes
           assets=$(gh release view "$GITHUB_REF_NAME" --repo "${{ github.repository }}" --json assets --jq '.assets[].name')
-          for f in TableauDeBordEtudiant.exe "TableauDeBordEtudiant-Setup-$version.exe" "TableauDeBordEtudiant-Setup-$version.exe.sig" latest.json SHA256SUMS.txt; do
+          for f in TableauDeBordEtudiant.exe tdb-mcp.exe "TableauDeBordEtudiant-Setup-$version.exe" "TableauDeBordEtudiant-Setup-$version.exe.sig" latest.json SHA256SUMS.txt; do
             echo "$assets" | grep -qxF "$f" || { echo "::error::Fichier non téléversé : $f"; exit 1; }
           done
           gh release edit "$GITHUB_REF_NAME" --repo "${{ github.repository }}" --draft=false --latest

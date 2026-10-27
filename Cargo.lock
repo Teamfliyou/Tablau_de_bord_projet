@@ -4965,7 +4965,7 @@ dependencies = [
 
 [[package]]
 name = "tableau-de-bord-etudiant"
-version = "5.0.1"
+version = "5.1.0"
 dependencies = [
  "base64 0.22.1",
  "keyring",
@@ -4981,6 +4981,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tdb-core",
  "tdb-shared",
+ "time",
 ]
 
 [[package]]
@@ -5428,7 +5429,7 @@ dependencies = [
 
 [[package]]
 name = "tdb-core"
-version = "4.2.0"
+version = "5.1.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -5448,7 +5449,7 @@ dependencies = [
 
 [[package]]
 name = "tdb-frontend"
-version = "4.2.0"
+version = "5.1.0"
 dependencies = [
  "futures-channel",
  "gloo-net",
@@ -5464,8 +5465,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tdb-mcp"
+version = "5.1.0"
+dependencies = [
+ "chrono",
+ "serde_json",
+ "tdb-core",
+ "tdb-shared",
+]
+
+[[package]]
 name = "tdb-server"
-version = "4.2.0"
+version = "5.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -5492,7 +5503,7 @@ dependencies = [
 
 [[package]]
 name = "tdb-shared"
-version = "4.2.0"
+version = "5.1.0"
 dependencies = [
  "chrono",
  "serde",

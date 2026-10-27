@@ -3,6 +3,7 @@
 
 mod coffre;
 mod maj;
+mod mcp;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -279,6 +280,9 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             maj::verifier_mise_a_jour,
             maj::installer_mise_a_jour,
             maj::progression_mise_a_jour,
+            mcp::etat_mcp,
+            mcp::definir_mcp,
+            mcp::tester_mcp,
         ])
         .run(tauri::generate_context!())?;
     Ok(())

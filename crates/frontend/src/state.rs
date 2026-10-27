@@ -8,7 +8,7 @@ use leptos::task::spawn_local;
 use serde_json::{json, Value};
 use tdb_shared::{
     Categories, Config, ConfigUpdate, Cours, Devoir, DevoirEntree, DevoirModification, Filtres,
-    InfoMiseAJour, Plan, Tag,
+    InfoMiseAJour, Plan, Tag, VerificationMiseAJour,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -98,6 +98,10 @@ pub struct Etat {
     pub maj_verification: RwSignal<bool>,
     pub maj_message: RwSignal<String>,
     pub maj_erreur: RwSignal<String>,
+    /// Résultat de la dernière recherche (dernière version publiée, date), même sans mise à jour.
+    pub maj_derniere: RwSignal<Option<VerificationMiseAJour>>,
+    /// Échec de la recherche automatique au démarrage (affiché seulement dans la Configuration).
+    pub maj_echec_auto: RwSignal<String>,
     // Emploi du temps
     pub cours: RwSignal<Vec<Cours>>,
     pub chargement_cours: RwSignal<bool>,
@@ -155,6 +159,8 @@ impl Etat {
             maj_verification: RwSignal::new(false),
             maj_message: RwSignal::new(String::new()),
             maj_erreur: RwSignal::new(String::new()),
+            maj_derniere: RwSignal::new(None),
+            maj_echec_auto: RwSignal::new(String::new()),
             cours: RwSignal::new(vec![]),
             chargement_cours: RwSignal::new(false),
             erreur_cours: RwSignal::new(None),
@@ -256,6 +262,9 @@ impl Etat {
                 gloo_timers::future::TimeoutFuture::new(4_000).await;
                 self.verifier_maj(false).await;
             });
+            // Hermes Agent (MCP) peut modifier les devoirs pendant que l'application est ouverte :
+            // ils sont relus quand la fenêtre reprend le focus.
+            let _ = window_event_listener(leptos::ev::focus, move |_| self.charger_devoirs());
         }
     }
 
@@ -268,19 +277,26 @@ impl Etat {
         self.maj_message.set(String::new());
         self.maj_erreur.set(String::new());
         match api::verifier_mise_a_jour().await {
-            Ok(Some(info)) => {
-                self.maj_info.set(Some(info));
-                self.maj_fenetre.set(true);
-            }
-            Ok(None) => {
-                self.maj_info.set(None);
-                if manuel {
-                    self.maj_message
-                        .set("Tu utilises déjà la dernière version.".into());
+            Ok(verification) => {
+                self.maj_echec_auto.set(String::new());
+                let mise_a_jour = verification.mise_a_jour.clone();
+                self.maj_derniere.set(Some(verification));
+                match mise_a_jour {
+                    Some(info) => {
+                        self.maj_info.set(Some(info));
+                        self.maj_fenetre.set(true);
+                    }
+                    None => {
+                        self.maj_info.set(None);
+                        if manuel {
+                            self.maj_message
+                                .set("Tu utilises déjà la dernière version.".into());
+                        }
+                    }
                 }
             }
             Err(e) if manuel => self.maj_erreur.set(e.message),
-            Err(_) => {}
+            Err(e) => self.maj_echec_auto.set(e.message),
         }
         self.maj_verification.set(false);
     }

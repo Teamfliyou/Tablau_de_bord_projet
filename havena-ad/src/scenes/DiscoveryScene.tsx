@@ -5,7 +5,7 @@ import { Backdrop } from "../components/Backdrop";
 import { Logo } from "../components/Logo";
 import { ProductVisual } from "../components/ProductVisual";
 import { RevealText } from "../components/RevealText";
-import { BRAND, PRODUCTS } from "../data/brand";
+import { PRODUCTS } from "../data/brand";
 import { COLORS, FONTS } from "../styles/theme";
 
 /** 3–8 s : le logo se dessine, la promesse de marque apparaît, trois cuisines défilent en parallaxe. */
@@ -29,11 +29,11 @@ export const DiscoveryScene: React.FC = () => {
         );
       })}
       <AbsoluteFill style={{ background: `linear-gradient(90deg, ${COLORS.ink} 0%, ${COLORS.ink}f2 36%, ${COLORS.ink}00 62%)` }} />
-      <div style={{ position: "absolute", left: 120, top: 330 }}>
-        <Logo size={120} delay={4} />
-        <div style={{ height: 70 }} />
-        <RevealText delay={44} style={{ fontFamily: FONTS.serif, fontWeight: 500, fontSize: 82, color: COLORS.cream }}>Créez la cuisine</RevealText>
-        <RevealText delay={52} style={{ fontFamily: FONTS.serif, fontWeight: 500, fontStyle: "italic", fontSize: 82, color: COLORS.brassLight }}>qui vous ressemble.</RevealText>
+      <div style={{ position: "absolute", left: 120, top: 260 }}>
+        <Logo width={540} delay={4} />
+        <div style={{ height: 64 }} />
+        <RevealText delay={44} style={{ fontFamily: FONTS.serif, fontWeight: 500, fontSize: 78, color: COLORS.cream }}>Cuisines sur mesure,</RevealText>
+        <RevealText delay={52} style={{ fontFamily: FONTS.serif, fontWeight: 500, fontStyle: "italic", fontSize: 78, color: COLORS.brassLight }}>conçues pour durer.</RevealText>
         <div style={{ height: 3, width: 160 * progress(frame, 70, 30), background: COLORS.brass, marginTop: 36 }} />
       </div>
     </AbsoluteFill>

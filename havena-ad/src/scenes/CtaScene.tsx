@@ -19,11 +19,11 @@ export const CtaScene: React.FC = () => {
     <AbsoluteFill>
       <Backdrop />
       <div style={{ position: "absolute", left: 1050, top: 235, opacity: Math.min(1, v * 1.4), transform: `translateX(${(1 - v) * 180}px) perspective(1800px) rotateY(${-9 + 3 * progress(frame, 0, 200, (t) => t)}deg)`, boxShadow: `0 50px 120px #000000cc, 0 0 ${60 + 40 * glow}px ${COLORS.brass}33`, borderRadius: 24, overflow: "hidden", border: `1px solid ${COLORS.brass}66` }}>
-        <ProductVisual product={PRODUCTS[1]} uid="cta" width={760} />
+        <ProductVisual product={PRODUCTS[2]} uid="cta" width={760} />
       </div>
-      <div style={{ position: "absolute", left: 120, top: 250 }}>
-        <Logo size={130} delay={2} />
-        <div style={{ height: 80 }} />
+      <div style={{ position: "absolute", left: 120, top: 270 }}>
+        <Logo width={560} delay={2} />
+        <div style={{ height: 64 }} />
         <RevealText delay={34} style={{ fontFamily: FONTS.serif, fontWeight: 600, fontSize: 84, color: COLORS.cream }}>{BRAND.cta}</RevealText>
         <div style={{ height: 50 }} />
         <div style={{ position: "relative", display: "inline-block", overflow: "hidden", padding: "26px 60px", borderRadius: 999, background: `linear-gradient(90deg, ${COLORS.brass}, ${COLORS.brassLight})`, transform: `scale(${0.8 + 0.2 * soft(frame, fps, 56)})`, opacity: progress(frame, 56, 14), boxShadow: `0 0 ${30 + 30 * glow}px ${COLORS.brass}66` }}>
@@ -31,7 +31,7 @@ export const CtaScene: React.FC = () => {
           <div style={{ position: "absolute", top: 0, bottom: 0, width: 120, left: `${-30 + sweep * 150}%`, background: "linear-gradient(90deg, transparent, #ffffff88, transparent)", transform: "skewX(-20deg)" }} />
         </div>
         <div style={{ marginTop: 34, opacity: progress(frame, 70, 18), fontFamily: FONTS.sans, fontWeight: 300, fontSize: 32, color: COLORS.muted }}>
-          Cuisine à {BRAND.price} · 3 finitions
+          Devis gratuit sous 72 h
         </div>
       </div>
     </AbsoluteFill>

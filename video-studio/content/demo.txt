@@ -1,0 +1,27 @@
+@title Démo — Faceless Studio
+@theme neon
+@duration 30
+
+[hook icon=rocket title="Crée des vidéos 100% en code"]
+Et si tu pouvais créer des vidéos virales sans caméra, sans visage et sans une seule image générée par IA ?
+
+[stat value=100 suffix=% icon=code title="Tout est du code"]
+Chaque animation, chaque icône et chaque graphique est dessiné en React et en SVG, rien d'autre.
+
+[bars icon=chart title="Tes vues explosent" data="Lun:12,Mar:28,Mer:45,Jeu:73,Ven:120"]
+Avec une production régulière, les vues décollent semaine après semaine.
+
+[line icon=rocket title="Une croissance continue" data="Jan:10,Mar:24,Mai:38,Juil:71,Sep:118"]
+Et comme tout est réutilisable, ta chaîne grandit sans effort.
+
+[list title="Le pipeline complet"]
+- Un script en texte brut
+- Découpage auto en scènes
+- Sous-titres animés
+- Export MP4 en 1 commande
+
+[question icon=bulb title="Prêt à te lancer ?"]
+Alors, prêt à automatiser ta production de vidéos ?
+
+[outro title="Abonne-toi pour la suite" cta="Suis le compte"]
+Abonne-toi pour découvrir la suite.

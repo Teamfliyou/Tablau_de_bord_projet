@@ -1,0 +1,32 @@
+{
+  "name": "video-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Système de production de vidéos faceless verticales (1080x1920) 100 % code avec Remotion",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "tsx scripts/render.ts",
+    "render:demo": "tsx scripts/render.ts content/demo.txt out/demo.mp4",
+    "plan": "tsx scripts/plan.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.539",
+    "@remotion/cli": "^4.0.539",
+    "@remotion/google-fonts": "^4.0.539",
+    "@remotion/media-utils": "^4.0.539",
+    "@remotion/renderer": "^4.0.539",
+    "@remotion/transitions": "^4.0.539",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "^4.0.539"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

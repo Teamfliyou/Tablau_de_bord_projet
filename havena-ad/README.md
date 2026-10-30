@@ -6,8 +6,9 @@ Publicité de 30 s, 1920×1080, 30 fps, 100 % code (Remotion + React + TypeScrip
 ```bash
 npm install
 npm run studio                       # aperçu
-npm run render                       # → output/havena-publicite-16-9.mp4
-npm run still -- 45 300 620          # images de contrôle → output/stills/
+npm run render                       # → output/havena-publicite-16-9.mp4 (1920×1080)
+npm run render -- --vertical         # → output/havena-publicite-9-16.mp4 (1080×1920, TikTok/Reels/Shorts)
+npm run still -- 45 300 620          # images de contrôle → output/stills/ (ajouter --vertical pour le 9:16)
 ```
 Chromium personnalisé : `BROWSER_EXECUTABLE=/chemin/chrome npm run render`.
 
@@ -22,3 +23,5 @@ Chromium personnalisé : `BROWSER_EXECUTABLE=/chemin/chrome npm run render`.
 ## Structure
 `src/scenes/` (5 scènes) · `src/components/` (KitchenSVG, Logo, RevealText, PanelWipe, Backdrop/FilmFinish, ProductVisual) ·
 `src/animations/` (easing, minutage) · `src/data/` · `src/styles/` · `src/compositions/HavenaAd.tsx` (montage).
+
+La version verticale (`src/scenes/vertical/`, `src/compositions/HavenaAdVertical.tsx`) réutilise les mêmes données, composants et le même minutage ; seule la mise en page change.

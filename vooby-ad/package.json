@@ -1,0 +1,21 @@
+{
+  "name": "vooby-ad",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts VoobyBlackNovember out/vooby-black-november.mp4",
+    "still": "remotion still src/index.ts VoobyBlackNovember out/frame.png --frame=600"
+  },
+  "dependencies": {
+    "@fontsource/cormorant-garamond": "^5.3.0",
+    "@fontsource/montserrat": "^5.3.0",
+    "@remotion/cli": "^4.0.539",
+    "@remotion/media-utils": "^4.0.539",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "^4.0.539",
+    "typescript": "^7.0.2"
+  }
+}

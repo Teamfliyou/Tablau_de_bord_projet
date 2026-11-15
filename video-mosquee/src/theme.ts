@@ -8,7 +8,7 @@ const fonts: [string, string, string][] = [
 	['Poppins', '400', 'poppins-400.woff2'],
 	['Poppins', '600 700', 'poppins-700.woff2'],
 	['Poppins', '800', 'poppins-800.woff2'],
-	['Amiri', '400', 'amiri-400.woff2'],
+	['DejaVu Sans', '400', 'dejavu-sans.ttf'],
 	['Arimo', '400 700', 'arimo-400.woff2'],
 ];
 for (const [family, weight, file] of fonts) {
@@ -17,18 +17,20 @@ for (const [family, weight, file] of fonts) {
 
 export const serif = 'Lora, serif';
 export const sans = 'Poppins, sans-serif';
-export const arabic = 'Amiri, serif';
+export const arabic = "'DejaVu Sans', sans-serif";
 // Police proche d'Arial, pour imiter le document officiel de la mairie.
 export const docFont = 'Arimo, Arial, sans-serif';
 
+// Charte graphique de l'affichage TV (voir CONTEXTE.md).
 export const C = {
-	bg: '#f8f6f2',
-	green: '#0f3d2e',
-	gold: '#d4922a',
-	goldSoft: '#ebc88f',
-	text: '#4a5068',
-	label: '#3d4255',
-	border: '#ebe7e1',
+	bg: '#faf8f5', // blanc cassé, fond par défaut
+	green: '#0f3a2e', // vert profond : titres, texte fort
+	gold: '#d89020', // doré : accents, filets, sur-titres
+	goldSoft: '#efcf98', // doré clair : surlignage
+	goldHalo: 'rgba(216,144,32,0.22)',
+	text: '#4a5568', // gris anthracite : texte courant
+	label: '#2f3a4a',
+	border: '#eaeaea', // gris clair : bordures
 	grey: '#c9c9c9',
 	red: '#c0392b',
 	white: '#ffffff',

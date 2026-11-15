@@ -74,13 +74,13 @@ export const Kicker: React.FC<{
 					style={{
 						fontFamily: arabic,
 						fontWeight: 400,
-						fontSize: size * 1.55,
+						fontSize: size * 1.3,
 						lineHeight: 1,
 						color: C.green,
 						direction: 'rtl',
 						opacity: arS,
 						transform: `scale(${interpolate(arS, [0, 1], [0.7, 1])})`,
-						marginTop: -8,
+						marginTop: 0,
 					}}
 				>
 					{ar}

@@ -118,7 +118,7 @@ const CurrentCircle: React.FC<{delay: number}> = ({delay}) => {
 					width: 150,
 					height: 150,
 					borderRadius: '50%',
-					background: 'rgba(212,146,42,0.22)',
+					background: C.goldHalo,
 					transform: `scale(${s * (1 + pulse * 0.1)})`,
 				}}
 			/>
@@ -161,9 +161,9 @@ const Card: React.FC<{
 		current: {
 			background: C.white,
 			border: `4px solid ${C.gold}`,
-			boxShadow: '0 18px 40px rgba(212,146,42,0.18)',
+			boxShadow: '0 18px 40px rgba(216,144,32,0.18)',
 		},
-		next: {background: 'transparent', border: `2px dashed #e2ded8`},
+		next: {background: 'transparent', border: `2px dashed #dcdcdc`},
 	};
 	return (
 		<div
@@ -259,7 +259,7 @@ export const Avancement: React.FC = () => {
 						width: (x4 - x1) * greyIn,
 						height: 8,
 						borderRadius: 4,
-						background: '#e9e7e3',
+						background: C.border,
 					}}
 				/>
 				{/* Frise : progression verte */}
@@ -341,7 +341,7 @@ export const Avancement: React.FC = () => {
 						height: CIRCLE,
 						borderRadius: '50%',
 						background: C.white,
-						border: `6px solid #ededed`,
+						border: `6px solid ${C.border}`,
 						display: 'flex',
 						alignItems: 'center',
 						justifyContent: 'center',

@@ -13,13 +13,19 @@ Vidéo Remotion (1920×1080, 30 i/s, ~37 s) qui reprend les 3 visuels avec des a
 Le bandeau du bas reste fixe, et la vidéo commence et se termine sur un fond vide :
 elle peut **tourner en boucle** sur la télé sans coupure visible.
 
+Charte graphique, règles d'affichage TV et données du permis : voir [CONTEXTE.md](CONTEXTE.md).
+
 ## Utilisation
 
 ```bash
 npm install
 npm run studio   # prévisualiser et modifier dans le navigateur
-npm run render   # génère out/mosquee-tv.mp4
+npm run build    # génère les vidéos pour la clé USB (voir ci-dessous)
 ```
+
+`npm run build` produit, au format TV (H.264 high 4.0, yuv420p, 30 i/s, sans son) :
+- `out/01_mosquee-tv.mp4` : une boucle de 37 s ;
+- `out/01_mosquee-tv_x20.mp4` : la même répétée 20 fois (≈ 12 min), pour les télés qui ne répètent pas les vidéos.
 
 ## Modifier le contenu
 
@@ -30,5 +36,5 @@ npm run render   # génère out/mosquee-tv.mp4
 
 ## Sur la télé
 
-Copier `out/mosquee-tv.mp4` sur une clé USB et activer la lecture en boucle (« Répéter »)
-dans le lecteur de la TV.
+Copier `out/01_mosquee-tv.mp4` sur une clé USB (FAT32) et activer la lecture en boucle
+(« Répéter ») dans le lecteur de la TV. Si la télé ne sait pas répéter, utiliser `01_mosquee-tv_x20.mp4`.

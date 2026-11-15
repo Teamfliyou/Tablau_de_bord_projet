@@ -120,7 +120,7 @@ const Document: React.FC = () => {
 					height: 378,
 					background: C.white,
 					borderRadius: 6,
-					boxShadow: '0 22px 60px rgba(15,61,46,0.16), 0 3px 10px rgba(0,0,0,0.06)',
+					boxShadow: '0 22px 60px rgba(15,58,46,0.16), 0 3px 10px rgba(0,0,0,0.06)',
 					overflow: 'hidden',
 				}}
 			>

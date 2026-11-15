@@ -6,7 +6,7 @@
   "scripts": {
     "studio": "remotion studio",
     "render": "remotion render MosqueeTV out/mosquee-tv.mp4",
-    "render:boucle": "remotion render MosqueeTV out/mosquee-tv.mp4 --codec=h264 --crf=16"
+    "build": "./build.sh"
   },
   "dependencies": {
     "@remotion/cli": "4.0.290",

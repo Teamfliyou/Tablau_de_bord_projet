@@ -28,7 +28,7 @@ export const Footer: React.FC = () => (
 			gap: 28,
 		}}
 	>
-		<Img src={staticFile('logo.png')} style={{height: 96}} />
+		<Img src={staticFile('logos/icone-bandeau.png')} style={{height: 78}} />
 		<div
 			style={{
 				fontFamily: serif,

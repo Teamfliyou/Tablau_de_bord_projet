@@ -2,6 +2,7 @@ import React from 'react';
 import {AbsoluteFill, Composition, Series} from 'remotion';
 import {Footer} from './components/Common';
 import {Avancement, AVANCEMENT_DURATION} from './scenes/Avancement';
+import {Collecte, COLLECTE_DURATION} from './scenes/Collecte';
 import {Permis, PERMIS_DURATION} from './scenes/Permis';
 import {Telephone, TELEPHONE_DURATION} from './scenes/Telephone';
 import {C, FPS} from './theme';
@@ -16,6 +17,9 @@ const MosqueeTV: React.FC = () => (
 		<Series>
 			<Series.Sequence durationInFrames={AVANCEMENT_DURATION}>
 				<Avancement />
+			</Series.Sequence>
+			<Series.Sequence durationInFrames={COLLECTE_DURATION}>
+				<Collecte />
 			</Series.Sequence>
 			<Series.Sequence durationInFrames={PERMIS_DURATION}>
 				<Permis />
@@ -33,12 +37,13 @@ export const RemotionRoot: React.FC = () => (
 		<Composition
 			id="MosqueeTV"
 			component={MosqueeTV}
-			durationInFrames={AVANCEMENT_DURATION + PERMIS_DURATION + TELEPHONE_DURATION}
+			durationInFrames={AVANCEMENT_DURATION + COLLECTE_DURATION + PERMIS_DURATION + TELEPHONE_DURATION}
 			fps={FPS}
 			width={1920}
 			height={1080}
 		/>
 		<Composition id="Avancement" component={AvancementScene} durationInFrames={AVANCEMENT_DURATION} fps={FPS} width={1920} height={1080} />
+		<Composition id="Collecte" component={CollecteScene} durationInFrames={COLLECTE_DURATION} fps={FPS} width={1920} height={1080} />
 		<Composition id="Permis" component={PermisScene} durationInFrames={PERMIS_DURATION} fps={FPS} width={1920} height={1080} />
 		<Composition id="Telephone" component={TelephoneScene} durationInFrames={TELEPHONE_DURATION} fps={FPS} width={1920} height={1080} />
 	</>
@@ -55,5 +60,6 @@ function Scene(Comp: React.FC): React.FC {
 }
 
 const AvancementScene = Scene(Avancement);
+const CollecteScene = Scene(Collecte);
 const PermisScene = Scene(Permis);
 const TelephoneScene = Scene(Telephone);

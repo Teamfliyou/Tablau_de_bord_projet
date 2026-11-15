@@ -2,6 +2,7 @@ import React from 'react';
 import {AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {CheckMark, Kicker, MaskLine, Rise, SceneExit} from '../components/Common';
 import {C, formatNumber, pop, progress, sans, serif} from '../theme';
+import {COLLECTE} from '../donnees';
 
 export const AVANCEMENT_DURATION = 420;
 
@@ -172,7 +173,7 @@ const Card: React.FC<{
 				left: center(i) - COL_W / 2,
 				top: 576,
 				width: COL_W,
-				height: 268,
+				height: 300,
 				borderRadius: 16,
 				display: 'flex',
 				flexDirection: 'column',
@@ -215,7 +216,7 @@ export const Avancement: React.FC = () => {
 	const p23 = progress(frame, ...T.line23);
 	const greenEnd = x1 + (x2 - x1) * p12 + (x3 - x2) * p23;
 
-	const counter = interpolate(frame, T.counter, [0, 100000], {
+	const counter = interpolate(frame, T.counter, [0, COLLECTE.recolte], {
 		extrapolateLeft: 'clamp',
 		extrapolateRight: 'clamp',
 		easing: (t) => 1 - Math.pow(1 - t, 3),
@@ -328,7 +329,28 @@ export const Avancement: React.FC = () => {
 					>
 						{formatNumber(counter)}&nbsp;€
 					</div>
-					<div style={smallText}>déjà récoltés</div>
+					<div style={smallText}>
+						récoltés sur {formatNumber(COLLECTE.objectif)}&nbsp;€
+					</div>
+					<div
+						style={{
+							width: '86%',
+							height: 14,
+							marginTop: 14,
+							borderRadius: 7,
+							background: C.border,
+							overflow: 'hidden',
+						}}
+					>
+						<div
+							style={{
+								width: `${(counter / COLLECTE.objectif) * 100}%`,
+								height: '100%',
+								borderRadius: 7,
+								background: C.gold,
+							}}
+						/>
+					</div>
 				</Card>
 
 				{/* Étape 4 : prochaine étape */}

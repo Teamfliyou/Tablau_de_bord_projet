@@ -65,9 +65,23 @@ La vidéo actuelle enchaîne les écrans 03, 04 et 05.
 - Recours des tiers possible pendant 2 mois à partir du début de l'affichage sur le terrain. Sur les écrans, écrire « accordé » et non « définitif ».
 - Ne pas afficher la signature du maire ni le nom du représentant de l'association.
 
+## Collecte du gros œuvre (mise à jour du 15/11/2026)
+
+Les phases du projet : 1. achat du local (janvier 2024, 380 000 €) → 2. permis de construire (accordé le 04/11/2026)
+→ 3. collecte pour le gros œuvre (en cours) → 4. travaux de gros œuvre.
+
+- Coût estimé du gros œuvre : **300 000 €**.
+- Montant récolté au 15/11/2026 : **137 683 €** (46 %), il reste 162 317 €.
+- Ces chiffres se modifient dans `src/donnees.ts`.
+
+## Logos
+
+Dans `public/logos/` (PNG à fond transparent) : `icone.png` (dôme seul), `logo-carre.png`,
+`logo-vertical.png`, `logo-texte.png` (texte seul), `icone-bandeau.png` (petite icône du bandeau).
+
 ## Pistes ouvertes
 
-- Horaires de prière : ils changent chaque jour, donc prévoir une image par semaine ou par mois générée à partir d'un fichier de données. Plus tard, éventuellement, un affichage en direct (box Android ou Raspberry Pi avec une page web hébergée sur le VPS).
-- Barre de progression de la collecte pour le gros œuvre (« 100 000 € sur X € »), à faire quand l'objectif chiffré sera connu.
-- Animations : faire apparaître les éléments un par un (frise, coche, chiffres) dans la vidéo MP4.
+- ~~Horaires de prière~~ : abandonné, ils n'apparaîtront jamais sur cet écran (décision du 15/11/2026).
+- ~~Barre de progression de la collecte~~ : faite (écran « Collecte » de la vidéo Remotion).
+- ~~Animations~~ : faites (vidéo Remotion).
 - Test sur la télé (modèle inconnu) : vérifier le rognage avec la mire, la durée réglable du diaporama et la lecture en boucle.
